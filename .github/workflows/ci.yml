@@ -92,6 +92,13 @@ jobs:
         run: pnpm test:stack
       - name: Egress drill
         run: deploy/production/egress-drill.sh
+      - name: Google sign-in setup works through the egress proxy (placeholder client)
+        run: |
+          GOOGLE_CLIENT_ID=placeholder.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=placeholder \
+            WORKSPACE_DOMAIN=adconversion.example deploy/production/configure-google-sso.sh
+          curl -sf localhost:3000/user/login | grep -q 'user/oauth2/google'
+          id=$(docker exec -u git brain-forgejo-1 forgejo admin auth list | awk '$2=="google"{print $1}')
+          docker exec -u git brain-forgejo-1 forgejo admin auth delete --id "$id"
       - name: Backup, destroy, restore
         run: |
           deploy/production/backup.sh

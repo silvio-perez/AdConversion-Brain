@@ -58,6 +58,8 @@ services:
       FORGEJO__service__DISABLE_REGISTRATION: "false" # sign-up ONLY via Google (next line)
       FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
       FORGEJO__service__REQUIRE_SIGNIN_VIEW: "true"
+      # Web password sign-in: off once Google sign-in works (break-glass via CLI).
+      FORGEJO__service__ENABLE_INTERNAL_SIGNIN: ${FORGEJO_INTERNAL_SIGNIN:-true}
       FORGEJO__service__DEFAULT_ORG_VISIBILITY: private
       FORGEJO__service__DEFAULT_USER_VISIBILITY: private
       FORGEJO__repository__DEFAULT_PRIVATE: private
