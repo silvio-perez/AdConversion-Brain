@@ -12,3 +12,10 @@ deploy/production/backups/
 # Secrets: every env file under deploy/, except committed examples.
 deploy/**/*.env
 !deploy/**/*.env.example
+
+# OpenTofu / Terraform state and variables (may contain account details)
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.*
+infra/**/terraform.tfvars
+infra/**/.terraform.lock.hcl.bak

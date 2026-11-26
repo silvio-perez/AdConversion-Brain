@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+region             = "us-east-1"
+alert_email        = "aws-brain@adconversion.io"
+budget_monthly_usd = 150
+# From the Bedrock console after enabling Claude, e.g. an inference profile ARN:
+bedrock_model_arns = [
+  "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.REPLACE-ME",
+]
+github_deploy_ref = "refs/heads/main"
