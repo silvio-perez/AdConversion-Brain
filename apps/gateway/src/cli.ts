@@ -8,6 +8,7 @@ import { ForgejoSource } from "./content.ts";
 import { syncIndex } from "./indexer.ts";
 import { loadVendorPolicy, vendorAllowed } from "./policy.ts";
 import { ForgejoWriter } from "./proposals.ts";
+import { ForgejoSkillSource, syncSkills } from "./skills.ts";
 import { openStore } from "./store.ts";
 import { createToken, listTokens, MAX_TOKEN_DAYS, revokeToken } from "./tokens.ts";
 
@@ -130,6 +131,9 @@ switch (`${command} ${sub ?? ""}`.trim()) {
   case "reindex":
     console.log(
       await syncIndex(db, new ForgejoSource({ ...cfg.forgejo, token: cfg.forgejo.token() })),
+    );
+    console.log(
+      await syncSkills(db, new ForgejoSkillSource({ ...cfg.forgejo, token: cfg.forgejo.token() })),
     );
     break;
   case "reconcile": {

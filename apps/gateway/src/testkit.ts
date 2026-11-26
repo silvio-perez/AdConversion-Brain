@@ -8,6 +8,7 @@ import { createApp } from "./http.ts";
 import { syncIndex } from "./indexer.ts";
 import { loadVendorPolicy } from "./policy.ts";
 import { MemoryWriter } from "./proposals.ts";
+import { FixtureSkillSource, syncSkills } from "./skills.ts";
 import { openStore } from "./store.ts";
 import { createToken, type NewToken } from "./tokens.ts";
 
@@ -19,6 +20,7 @@ export const GLOBEX = "client-globex-cloud";
 export async function makeGateway() {
   const db = openStore(":memory:");
   await syncIndex(db, new FixtureSource(join(ROOT, "fixtures/synthetic")));
+  await syncSkills(db, new FixtureSkillSource(join(ROOT, "fixtures/synthetic/skills")));
   // In-memory stand-in for Forgejo, seeded with the same revisions as the index.
   const writer = new MemoryWriter();
   for (const d of db.prepare("SELECT source, path, revision, body FROM documents").all() as {

@@ -36,6 +36,9 @@ export const READ_TOOLS = [
   "read_document",
   "search",
   "list_proposals",
+  "list_skills",
+  "get_skill",
+  "read_skill_file",
 ] as const;
 export const PROPOSE_TOOLS = ["propose_change", "propose_document"] as const;
 
@@ -140,6 +143,40 @@ export function buildMcpServer(brain: Brain, caller: Caller): McpServer {
       annotations: ro,
     },
     guarded(({ source }: { source?: string | undefined }) => brain.listProposals(caller, source)),
+  );
+
+  server.registerTool(
+    "list_skills",
+    {
+      description:
+        "List published AdConversion skills (reusable AI workflows): name, version, whether everyone should use it (required) or it's optional, and what it does.",
+      annotations: ro,
+    },
+    guarded(() => brain.listSkills(caller)),
+  );
+  server.registerTool(
+    "get_skill",
+    {
+      description:
+        "Load a published skill: its instructions (SKILL.md) and the list of supporting files. Follow the instructions to perform the task.",
+      inputSchema: { name: z.string().describe("Skill name from list_skills") },
+      annotations: ro,
+    },
+    guarded(({ name }: { name: string }) => brain.getSkill(caller, name)),
+  );
+  server.registerTool(
+    "read_skill_file",
+    {
+      description: "Read one supporting file of a published skill (template, example, reference).",
+      inputSchema: {
+        name: z.string(),
+        path: z.string().describe("Path from get_skill's file list, e.g. 'templates/recap.md'"),
+      },
+      annotations: ro,
+    },
+    guarded(({ name, path }: { name: string; path: string }) =>
+      brain.readSkillFile(caller, name, path),
+    ),
   );
 
   if (caller.token.mode !== "propose") return server;

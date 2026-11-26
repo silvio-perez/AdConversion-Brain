@@ -8,6 +8,7 @@ import { createApp } from "./http.ts";
 import { syncIndex } from "./indexer.ts";
 import { loadVendorPolicy } from "./policy.ts";
 import { ForgejoWriter } from "./proposals.ts";
+import { ForgejoSkillSource, syncSkills } from "./skills.ts";
 import { openStore } from "./store.ts";
 
 const cfg = loadConfig();
@@ -25,11 +26,18 @@ const writer = new ForgejoWriter({
   token: cfg.forgejo.proposerToken(),
 });
 const brain = new Brain(db, loadVendorPolicy(cfg.vendorPolicy), writer);
+const skillSource = new ForgejoSkillSource({
+  url: cfg.forgejo.url,
+  org: cfg.forgejo.org,
+  token: cfg.forgejo.token(),
+});
 
 async function reindex() {
   try {
     const changed = await syncIndex(db, source);
     if (changed.length) console.log(`indexed: ${changed.join(", ")}`);
+    const skills = await syncSkills(db, skillSource);
+    if (skills.length) console.log(`published skills: ${skills.join(", ")}`);
     const decisions = await brain.reconcile();
     if (decisions) console.log(`recorded ${decisions} proposal decision(s)`);
   } catch (err) {

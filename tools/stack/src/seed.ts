@@ -301,6 +301,47 @@ async function ensureServiceAccount(
   log(`created ${acct.user} token (${acct.scopes.join(", ")})`);
 }
 
+/** Only knowledge admins may create release tags: publishing a skill is a human decision. */
+async function ensureTagProtection() {
+  const list = await api("GET", `/repos/${ORG}/skills/tag_protections`);
+  expectOk(list, "list tag protections");
+  if ((list.json as { name_pattern: string }[]).some((p) => p.name_pattern === "*")) {
+    log("skills tags protected (knowledge-admins only)");
+    return;
+  }
+  expectOk(
+    await api("POST", `/repos/${ORG}/skills/tag_protections`, {
+      name_pattern: "*",
+      whitelist_teams: ["knowledge-admins"],
+    }),
+    "protect skills tags",
+  );
+  log("protected skills tags (knowledge-admins only)");
+}
+
+/** Publish v1 of every skill on main that has no release yet, as Carol (a knowledge admin). */
+async function ensureInitialReleases() {
+  const carol = forgejo({ username: "carol.synthetic", password: userPassword });
+  const tags = await carol("GET", `/repos/${ORG}/skills/tags?limit=50`);
+  expectOk(tags, "list skill tags");
+  const existing = new Set((tags.json as { name: string }[]).map((t) => t.name.split("/")[0]));
+  const tree = await carol("GET", `/repos/${ORG}/skills/git/trees/main?recursive=true`);
+  const skills = (tree.json as { tree: { path: string }[] }).tree
+    .map((e) => /^([a-z0-9-]+)\/SKILL\.md$/.exec(e.path)?.[1])
+    .filter((n): n is string => !!n);
+  for (const name of skills.filter((n) => !existing.has(n))) {
+    expectOk(
+      await carol("POST", `/repos/${ORG}/skills/tags`, {
+        tag_name: `${name}/v1`,
+        target: "main",
+        message: `Publish ${name} v1`,
+      }),
+      `publish ${name}`,
+    );
+    log(`published ${name}/v1 (as carol.synthetic)`);
+  }
+}
+
 console.log(`Seeding ${FORGEJO_URL}`);
 ensureAdmin();
 for (const u of USERS) await ensureUser(u);
@@ -311,6 +352,8 @@ for (const r of REPOS) {
 }
 for (const t of TEAMS) await ensureTeam(t);
 for (const r of REPOS) await ensureProtection(r);
+await ensureTagProtection();
+await ensureInitialReleases();
 
 const envValues = readGatewayEnv();
 for (const acct of SERVICE_ACCOUNTS) await ensureServiceAccount(acct, envValues);

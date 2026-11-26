@@ -87,7 +87,7 @@ Deliverables:
 
 **Teaches:** why governed knowledge beats live editing for agents.
 
-### Milestone 4: Skills library (1 week)
+### Milestone 4: Skills library (1 week) ✅ Done 2026-11-26 (see `docs/milestones/m4-skills.md`)
 
 **Work:**
 

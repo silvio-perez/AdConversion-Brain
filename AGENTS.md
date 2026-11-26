@@ -32,5 +32,6 @@ before making structural changes. All access decisions live in
 - `pnpm stack:init && pnpm stack:up && pnpm stack:seed`: local Forgejo + Postgres with synthetic data.
 - `pnpm gateway`: run the Brain Gateway locally (after the stack is seeded).
 - `pnpm brain token create ...`: issue a scoped agent token (see `docs/connecting-agents.md`).
+- `BRAIN_TOKEN=... pnpm skills`: install published skills locally.
 - `pnpm test:stack`: live isolation and change-control tests (needs stack + gateway running). Required for any access-related change.
 - Small commits with clear messages. Update docs alongside code.

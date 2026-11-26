@@ -67,6 +67,10 @@ OpenAPI spec: `GET /v1/openapi.json`. Send `Authorization: Bearer <token>`.
 | `GET /v1/sources/{source}/documents?prefix=` | List documents |
 | `GET /v1/sources/{source}/documents/{path}` | Read one document |
 | `GET /v1/search?q=&source=&limit=` | Full-text search |
+| `GET /v1/skills` | Published skills |
+| `GET /v1/skills/{name}` | Skill instructions + file list |
+| `GET /v1/skills/{name}/files/{path}` | One skill file |
+| `GET /v1/skills/{name}/bundle` | All files (used by `pnpm skills`) |
 | `GET /v1/proposals?source=` | Recent proposals and their status |
 | `POST /v1/sources/{source}/proposals` | Propose a change (propose tokens only) |
 
@@ -80,6 +84,9 @@ OpenAPI spec: `GET /v1/openapi.json`. Send `Authorization: Bearer <token>`.
 | `read_document` | Full document, metadata and `revision` |
 | `search` | Full-text search with snippets |
 | `list_proposals` | Recent proposals and whether they were merged |
+| `list_skills` | Published skills, version, required/optional |
+| `get_skill` | A skill's instructions and its file list |
+| `read_skill_file` | One supporting file (template, example) |
 | `propose_change` | **Propose tokens only.** Suggest an update; needs the `revision` from `read_document` |
 | `propose_document` | **Propose tokens only.** Suggest a new document |
 
@@ -104,3 +111,9 @@ pnpm brain token revoke <first 8+ characters of the id>
 ```
 
 Revocation takes effect on the next request.
+
+## 6. Skills
+
+Agents can load skills on demand (`list_skills` then `get_skill`), which works in
+any MCP tool. To install them into a tool's own skills folder, see
+`docs/publishing-skills.md` (`pnpm skills`).

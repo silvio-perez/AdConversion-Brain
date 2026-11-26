@@ -1,0 +1,9 @@
+# Which published skills everyone gets. Changes go through a reviewed proposal.
+# required: installed for everyone by `skills sync`
+# optional: installed only for people who opt in (`skills sync --add <name>`)
+# deprecated: no longer served; sync removes it
+skills:
+  linkedin-ad-copy:
+    status: required
+  meeting-recap:
+    status: optional

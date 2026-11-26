@@ -14,6 +14,7 @@ import {
   proposalBody,
   StaleRevisionError,
 } from "./proposals.ts";
+import { SKILLS_SOURCE } from "./skills.ts";
 import type { Store } from "./store.ts";
 import type { TokenRecord } from "./tokens.ts";
 
@@ -53,6 +54,15 @@ export interface ProposalInfo {
   createdAt: string;
   approvedBy: string | null;
   decidedBy: string | null;
+}
+
+export interface SkillInfo {
+  name: string;
+  version: number;
+  tag: string;
+  status: "required" | "optional";
+  description: string;
+  files: number;
 }
 
 export interface Caller {
@@ -433,6 +443,75 @@ export class Brain {
       }
     }
     return changes;
+  }
+
+  // ---- Skills (published versions only). Access requires the "skills" source.
+
+  listSkills(caller: Caller): SkillInfo[] {
+    this.#requireSource(caller, SKILLS_SOURCE, "list_skills");
+    this.audit(caller, "list_skills", "ok", SKILLS_SOURCE);
+    return (
+      this.#db
+        .prepare(
+          `SELECT s.name, s.version, s.tag, s.status, s.description,
+                  (SELECT COUNT(*) FROM skill_files f WHERE f.name = s.name) AS files
+           FROM skills s ORDER BY s.status DESC, s.name`,
+        )
+        .all() as unknown as SkillInfo[]
+    ).map((r) => ({ ...r, version: Number(r.version), files: Number(r.files) }));
+  }
+
+  #skill(caller: Caller, action: string, name: string): SkillInfo {
+    this.#requireSource(caller, SKILLS_SOURCE, action, name);
+    const row = this.#db
+      .prepare("SELECT name, version, tag, status, description FROM skills WHERE name = ?")
+      .get(name) as Omit<SkillInfo, "files"> | undefined;
+    if (!row) {
+      this.audit(caller, action, "not_found", SKILLS_SOURCE, name);
+      throw new NotFoundError();
+    }
+    return { ...row, version: Number(row.version), files: 0 };
+  }
+
+  getSkill(caller: Caller, name: string) {
+    const skill = this.#skill(caller, "get_skill", name);
+    const files = this.#db
+      .prepare(
+        "SELECT path, length(content) AS bytes, sha256 FROM skill_files WHERE name = ? ORDER BY path",
+      )
+      .all(name) as { path: string; bytes: number; sha256: string }[];
+    const skillMd = this.#db
+      .prepare("SELECT content FROM skill_files WHERE name = ? AND path = 'SKILL.md'")
+      .get(name) as { content: string };
+    this.audit(caller, "get_skill", "ok", SKILLS_SOURCE, `${skill.tag}`);
+    return {
+      ...skill,
+      files: files.map((f) => ({ ...f, bytes: Number(f.bytes) })),
+      instructions: skillMd.content,
+    };
+  }
+
+  readSkillFile(caller: Caller, name: string, path: string) {
+    const skill = this.#skill(caller, "read_skill_file", name);
+    const file = this.#db
+      .prepare("SELECT content, sha256 FROM skill_files WHERE name = ? AND path = ?")
+      .get(name, path) as { content: string; sha256: string } | undefined;
+    if (!file) {
+      this.audit(caller, "read_skill_file", "not_found", SKILLS_SOURCE, `${skill.tag}:${path}`);
+      throw new NotFoundError();
+    }
+    this.audit(caller, "read_skill_file", "ok", SKILLS_SOURCE, `${skill.tag}:${path}`);
+    return { name, version: skill.version, path, ...file };
+  }
+
+  /** Everything needed to install a skill locally (used by `skills sync`). */
+  skillBundle(caller: Caller, name: string) {
+    const skill = this.#skill(caller, "skill_bundle", name);
+    const files = this.#db
+      .prepare("SELECT path, content, sha256 FROM skill_files WHERE name = ? ORDER BY path")
+      .all(name) as { path: string; content: string; sha256: string }[];
+    this.audit(caller, "skill_bundle", "ok", SKILLS_SOURCE, skill.tag);
+    return { ...skill, files: files.length, contents: files };
   }
 
   #systemAudit(action: string, actor: string | null, source: string, resource: string) {

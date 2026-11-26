@@ -111,6 +111,25 @@ const MIGRATIONS: string[] = [
     CREATE INDEX proposals_token_time ON proposals (token_id, created_at);
     CREATE INDEX proposals_open ON proposals (state) WHERE state = 'open';
   `,
+  // v3: published skills (Milestone 4). Only released versions live here.
+  `
+    CREATE TABLE skills (
+      name        TEXT PRIMARY KEY,
+      version     INTEGER NOT NULL,
+      tag         TEXT NOT NULL,
+      commit_sha  TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status      TEXT NOT NULL CHECK (status IN ('required', 'optional')),
+      synced_at   TEXT NOT NULL
+    );
+    CREATE TABLE skill_files (
+      name    TEXT NOT NULL,
+      path    TEXT NOT NULL,
+      content TEXT NOT NULL,
+      sha256  TEXT NOT NULL,
+      PRIMARY KEY (name, path)
+    );
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

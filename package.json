@@ -26,7 +26,8 @@
     "stack:seed": "node tools/stack/src/seed.ts",
     "test:stack": "BRAIN_STACK=1 vitest run tools/stack",
     "gateway": "node --disable-warning=ExperimentalWarning --env-file-if-exists=deploy/local/.env --env-file-if-exists=deploy/local/gateway.env apps/gateway/src/main.ts",
-    "brain": "node --disable-warning=ExperimentalWarning --env-file-if-exists=deploy/local/.env --env-file-if-exists=deploy/local/gateway.env apps/gateway/src/cli.ts"
+    "brain": "node --disable-warning=ExperimentalWarning --env-file-if-exists=deploy/local/.env --env-file-if-exists=deploy/local/gateway.env apps/gateway/src/cli.ts",
+    "skills": "node tools/skills-sync/src/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",

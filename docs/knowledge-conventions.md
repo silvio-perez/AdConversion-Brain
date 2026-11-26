@@ -66,6 +66,15 @@ A skill is a folder in the `skills` repository with a `SKILL.md` whose
 frontmatter has `name` (matching the folder) and `description`. This is the
 format Claude, Codex and the open agents convention all read.
 
+Other files inside a skill folder (templates, examples, scripts) are resources
+and need no frontmatter. `skills.yaml` at the repository root says which
+published skills are `required`, `optional` or `deprecated`.
+
+**Publishing:** a skill on `main` is a draft. A knowledge admin publishes it by
+creating a release tag named `<skill-name>/v<N>` (for example
+`linkedin-ad-copy/v2`). Only published versions are served to agents, and a
+tag never changes, so everyone running v2 runs exactly the same skill.
+
 ## 5. Changing knowledge
 
 The `main` branch of every repository is protected. Nobody, including admins and

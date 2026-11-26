@@ -133,6 +133,27 @@ export function createApp(opts: { db: Store; brain: Brain; clientKey?: (c: Conte
   );
 
   app.get(
+    "/v1/skills",
+    rest((_c, caller) => ({ skills: brain.listSkills(caller) })),
+  );
+  app.get(
+    "/v1/skills/:name",
+    rest((c, caller) => brain.getSkill(caller, c.req.param("name") ?? "")),
+  );
+  app.get(
+    "/v1/skills/:name/bundle",
+    rest((c, caller) => brain.skillBundle(caller, c.req.param("name") ?? "")),
+  );
+  app.get(
+    "/v1/skills/:name/files/*",
+    rest((c, caller) => {
+      const name = c.req.param("name") ?? "";
+      const marker = `/v1/skills/${encodeURIComponent(name)}/files/`;
+      const path = decodeURIComponent(new URL(c.req.url).pathname.slice(marker.length));
+      return brain.readSkillFile(caller, name, path);
+    }),
+  );
+  app.get(
     "/v1/proposals",
     rest((c, caller) => ({ proposals: brain.listProposals(caller, c.req.query("source")) })),
   );

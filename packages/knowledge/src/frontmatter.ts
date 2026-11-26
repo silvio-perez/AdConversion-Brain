@@ -42,7 +42,13 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Return a list of human-readable problems. Empty means the document is valid. */
+/** Files inside a skill folder (other than SKILL.md) are resources, not knowledge documents. */
+export function isSkillResource(repo: string, path: string): boolean {
+  return repo === "skills" && path.includes("/") && !path.endsWith("/SKILL.md");
+}
+
 export function validateDocument(source: string, ctx: ValidationContext): string[] {
+  if (isSkillResource(ctx.repo, ctx.path)) return [];
   const split = splitFrontmatter(source);
   if (!split) return ["missing frontmatter block (--- ... ---) at top of file"];
   const fm = split.data;

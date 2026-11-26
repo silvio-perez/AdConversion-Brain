@@ -52,6 +52,18 @@ describe("validateDocument", () => {
     expect(validateDocument(real, ctx)).toContain("fixtures must set synthetic: true");
   });
 
+  it("treats files inside a skill folder as resources, not documents", () => {
+    const ctx2 = {
+      repo: "skills",
+      path: "meeting-recap/templates/recap.md",
+      requireSynthetic: true,
+    };
+    expect(validateDocument("## just a template", ctx2)).toEqual([]);
+    expect(
+      validateDocument("## no frontmatter", { ...ctx2, repo: "company", path: "a/b.md" }),
+    ).toHaveLength(1);
+  });
+
   it("checks skill name matches its folder", () => {
     const skill =
       "---\nname: other\ndescription: A sufficiently long description here.\nsynthetic: true\n---\n";

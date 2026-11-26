@@ -60,6 +60,40 @@ export const openApiSpec = {
         responses: { 200: { description: "OK" }, 404: err },
       },
     },
+    "/v1/skills": {
+      get: {
+        operationId: "listSkills",
+        summary: "Published skills",
+        responses: { 200: { description: "OK" }, 404: err },
+      },
+    },
+    "/v1/skills/{name}": {
+      get: {
+        operationId: "getSkill",
+        summary: "A published skill's instructions and file list",
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: { 200: { description: "OK" }, 404: err },
+      },
+    },
+    "/v1/skills/{name}/bundle": {
+      get: {
+        operationId: "getSkillBundle",
+        summary: "All files of a published skill, for local installation",
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: { 200: { description: "OK" }, 404: err },
+      },
+    },
+    "/v1/skills/{name}/files/{path}": {
+      get: {
+        operationId: "readSkillFile",
+        summary: "One file of a published skill",
+        parameters: [
+          { name: "name", in: "path", required: true, schema: { type: "string" } },
+          { name: "path", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: { 200: { description: "OK" }, 404: err },
+      },
+    },
     "/v1/proposals": {
       get: {
         operationId: "listProposals",
