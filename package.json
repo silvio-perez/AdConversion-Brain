@@ -21,10 +21,10 @@
     "stack:up": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env up -d --wait",
     "stack:down": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env down",
     "stack:reset": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env down -v",
-    "stack:logs": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env logs -f",
+    "stack:logs": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env logs",
     "check:knowledge": "vitest run packages/knowledge",
     "stack:seed": "node tools/stack/src/seed.ts",
-    "test:stack": "BRAIN_STACK=1 vitest run tools/stack",
+    "test:stack": "BRAIN_STACK=1 vitest run tools/stack --testTimeout=60000",
     "gateway": "node --disable-warning=ExperimentalWarning --env-file-if-exists=deploy/local/.env --env-file-if-exists=deploy/local/gateway.env apps/gateway/src/main.ts",
     "brain": "node --disable-warning=ExperimentalWarning --env-file-if-exists=deploy/local/.env --env-file-if-exists=deploy/local/gateway.env apps/gateway/src/cli.ts",
     "skills": "node tools/skills-sync/src/cli.ts"

@@ -57,4 +57,4 @@ jobs:
         if: failure()
         run: |
           cat gateway.log || true
-          pnpm stack:logs --no-follow --tail 200
+          pnpm stack:logs --tail 200
