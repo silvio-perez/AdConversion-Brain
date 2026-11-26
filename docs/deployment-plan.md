@@ -1,6 +1,6 @@
 # Milestone 6: Deployment, Security Gate and Pilot
 
-**Status:** PLAN, awaiting founder approval. Nothing is deployed until approved.
+**Status:** Phase A complete (2026-11-26). Phase B (creating AWS resources) needs explicit approval at step B3.
 **Date:** 2026-11-26
 **Depends on:** AdConversion AWS account (verification in progress), decisions in §8.
 
@@ -24,7 +24,7 @@ green **before** any real client document or transcript is loaded.
         |  Tailscale (encrypted private network; no public ports)
         v
  +---------------------------- AWS account: adconversion-brain ----------------------------+
- |  VPC, one private subnet                                                                |
+ |  VPC, one subnet with NO inbound rules (no NAT gateway needed)                          |
  |                                                                                         |
  |  EC2 instance (4 GB RAM, encrypted disk)  -- IAM role, no access keys                   |
  |   Docker Compose:                                                                       |
@@ -175,18 +175,39 @@ least weekly) for ingestion to matter.
 | Item | Estimate |
 |---|---|
 | EC2 instance (2 vCPU, 4 GB) + 50 GB encrypted disk | ~$35 |
-| VPC interface endpoints (Bedrock, SSM; one zone) | ~$25–40 |
+| VPC interface endpoint (Bedrock; one zone) | ~$8 |
 | S3 backups, CloudTrail, snapshots | ~$5–10 |
 | Bedrock (Claude) for ingestion | Usage-based; likely tens of dollars at pilot volume. We'll measure per meeting in week 1. |
 | Tailscale | Depends on plan and user count; check current pricing |
-| **Total** | **Roughly $80–150/month plus Bedrock usage** |
+| **Total** | **Roughly $50–80/month plus Tailscale and Bedrock usage** |
 
 These are planning estimates from typical AWS pricing. Confirm with the AWS
 pricing calculator for your region before deploying.
 
 ---
 
-## 8. Decisions needed from you
+## 8. Decisions
+
+**Resolved 2026-11-26:**
+
+| Decision | Outcome |
+|---|---|
+| Access model | Tailscale, no public ports |
+| Tailscale as a vendor | Approved |
+| `@aws-sdk/client-bedrock-runtime` | Approved (installed) |
+| OS security patches | Automatic, security only; app images stay pinned |
+| Infrastructure as code | **OpenTofu** (open source, MPL-2.0), validated in CI |
+| Network | **Public subnet with no inbound rules** instead of a private subnet + NAT (~$35/month saved, same exposure). Bedrock and S3 still use private endpoints. SSM over the internet (no SSM endpoints). |
+
+**Still open:**
+
+| # | Decision | My recommendation |
+|---|---|---|
+| 6 | Bedrock model for extraction | Mid-tier Claude first; compare against the smallest with `pnpm ingest:eval` |
+| 7 | Region | US (`us-east-1` or `us-west-2`) unless a client contract requires EU |
+| 8 | Pilot client and pod | Your call, using the criteria in §6 |
+
+### Original decision list (for reference)
 
 | # | Decision | My recommendation |
 |---|---|---|
