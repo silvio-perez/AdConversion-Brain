@@ -26,7 +26,7 @@ Deliverables:
 
 ## Phase 1: MVP, "a trustworthy brain agents can read" (about 7–9 weeks)
 
-### Milestone 0: Environment (2–3 days)
+### Milestone 0: Environment (2–3 days) ✅ Done 2026-11-26 (see `docs/milestones/m0-environment.md`)
 
 **Work:**
 

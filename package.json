@@ -1,0 +1,27 @@
+{
+  "name": "adconversion-brain",
+  "private": true,
+  "version": "0.0.0",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "vitest run",
+    "env:check": "bash scripts/doctor.sh",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:licenses",
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "check:audit": "pnpm audit --prod --audit-level high"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.9",
+    "@types/node": "^22.20.7",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
+  }
+}
