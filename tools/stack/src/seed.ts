@@ -1,7 +1,8 @@
 // Seeds the local Forgejo with the synthetic organisation described in
 // docs/knowledge-conventions.md. Idempotent: safe to run repeatedly.
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FORGEJO_URL, loadLocalEnv, ORG } from "./env.ts";
@@ -179,6 +180,66 @@ async function ensureTeam(team: (typeof TEAMS)[number]) {
   log(`team ${team.name}: repos [${team.repos.join(", ")}], members [${team.members.join(", ")}]`);
 }
 
+// The gateway reads every repository through its own read-only account and
+// enforces per-client scope itself (defence in depth: it can never write).
+const GATEWAY_USER = "brain-gateway";
+const GATEWAY_ENV = join(import.meta.dirname, "../../../deploy/local/gateway.env");
+
+async function ensureGatewayAccount() {
+  const password = randomBytes(24).toString("base64url");
+  const created = await api("POST", "/admin/users", {
+    username: GATEWAY_USER,
+    email: `${GATEWAY_USER}@brain.local`,
+    password,
+    must_change_password: false,
+    visibility: "private",
+  });
+  expectOk(created, "create gateway user", [422]);
+
+  const list = await api("GET", `/orgs/${ORG}/teams`);
+  let team = (list.json as { id: number; name: string }[]).find(
+    (t) => t.name === "gateway-readers",
+  );
+  if (!team) {
+    const res = await api("POST", `/orgs/${ORG}/teams`, {
+      name: "gateway-readers",
+      permission: "read",
+      includes_all_repositories: true,
+      can_create_org_repo: false,
+      units: ["repo.code"],
+      units_map: { "repo.code": "read" },
+    });
+    expectOk(res, "create gateway-readers team");
+    team = res.json as { id: number; name: string };
+  }
+  expectOk(await api("PUT", `/teams/${team.id}/members/${GATEWAY_USER}`), "add gateway to team");
+
+  if (existsSync(GATEWAY_ENV)) {
+    log("gateway account ready (token already in deploy/local/gateway.env)");
+    return;
+  }
+  // Fresh password used once to mint a token, then forgotten.
+  expectOk(
+    await api("PATCH", `/admin/users/${GATEWAY_USER}`, {
+      password,
+      login_name: GATEWAY_USER,
+      source_id: 0,
+    }),
+    "reset gateway password",
+  );
+  const asGateway = forgejo({ username: GATEWAY_USER, password });
+  await asGateway("DELETE", `/users/${GATEWAY_USER}/tokens/gateway`);
+  const tok = await asGateway("POST", `/users/${GATEWAY_USER}/tokens`, {
+    name: "gateway",
+    scopes: ["read:repository", "read:organization"],
+  });
+  expectOk(tok, "create gateway token");
+  writeFileSync(GATEWAY_ENV, `FORGEJO_GATEWAY_TOKEN=${(tok.json as { sha1: string }).sha1}\n`, {
+    mode: 0o600,
+  });
+  log("created read-only gateway token -> deploy/local/gateway.env");
+}
+
 console.log(`Seeding ${FORGEJO_URL}`);
 ensureAdmin();
 for (const u of USERS) await ensureUser(u);
@@ -189,4 +250,5 @@ for (const r of REPOS) {
   await ensureProtection(r);
 }
 for (const t of TEAMS) await ensureTeam(t);
+await ensureGatewayAccount();
 console.log("Done. Sign in at http://localhost:3000 (credentials in deploy/local/.env).");

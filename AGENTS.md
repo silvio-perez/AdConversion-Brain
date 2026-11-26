@@ -7,7 +7,8 @@ OpenAI Codex, Gemini CLI, Cursor, and others). Vendor-neutral on purpose.
 
 AdConversion Brain: a private, Git-backed markdown knowledge platform exposed to
 employees and AI agents over MCP and REST. Read `docs/architecture-decision.md`
-before making structural changes.
+before making structural changes. All access decisions live in
+`apps/gateway/src/brain.ts`; never add a read path that bypasses it.
 
 ## Non-negotiable rules
 
@@ -29,5 +30,7 @@ before making structural changes.
 - `pnpm check`: lint, typecheck, tests, license policy. Must pass before commit.
 - `pnpm format`: auto-fix formatting.
 - `pnpm stack:init && pnpm stack:up && pnpm stack:seed`: local Forgejo + Postgres with synthetic data.
-- `pnpm test:stack`: live isolation and change-control tests. Required for any access-related change.
+- `pnpm gateway`: run the Brain Gateway locally (after the stack is seeded).
+- `pnpm brain token create ...`: issue a scoped agent token (see `docs/connecting-agents.md`).
+- `pnpm test:stack`: live isolation and change-control tests (needs stack + gateway running). Required for any access-related change.
 - Small commits with clear messages. Update docs alongside code.

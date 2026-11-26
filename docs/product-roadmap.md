@@ -54,7 +54,7 @@ Deliverables:
 
 **Teaches:** Git as a database, why repo-per-client gives hard isolation.
 
-### Milestone 2: Brain Gateway, read-only MCP (2 weeks)
+### Milestone 2: Brain Gateway, read-only MCP (2 weeks) ✅ Done 2026-11-26 (see `docs/milestones/m2-gateway.md`)
 
 **Work:**
 

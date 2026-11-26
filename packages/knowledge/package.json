@@ -1,12 +1,15 @@
 {
-  "name": "@brain/knowledge-tools",
+  "name": "@brain/knowledge",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "exports": {
+    ".": "./src/frontmatter.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "devDependencies": {
+  "dependencies": {
     "yaml": "^2.9.1"
   }
 }

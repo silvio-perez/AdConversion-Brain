@@ -6,3 +6,5 @@ coverage/
 !.env.example
 *.log
 .DS_Store
+deploy/local/data/
+deploy/local/gateway.env

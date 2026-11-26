@@ -1,0 +1,7 @@
+{
+  "$comment": "Which AI vendors may receive each client's knowledge (SEC-EGR-3, SEC-EGR-6, SEC-AUTH-7). Clients without an override use approvedVendors. Synthetic example: Globex allows Anthropic only, to exercise the rule.",
+  "approvedVendors": ["anthropic", "openai", "google"],
+  "clientOverrides": {
+    "globex-cloud": ["anthropic"]
+  }
+}

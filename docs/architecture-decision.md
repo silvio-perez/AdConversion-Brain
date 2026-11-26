@@ -287,3 +287,31 @@ Controls:
 
 - **Local harnesses** (Claude Code, Codex CLI, Gemini CLI) reach the Brain over Tailscale. That is the Phase 1 scope.
 - **Cloud-hosted apps** (claude.ai, ChatGPT, the Gemini app) call MCP from *their* servers. They therefore need a **public, OAuth-protected endpoint**. This is deferred to Phase 2 and needs a separate approval.
+
+---
+
+## 9. Amendment (2026-11-26): gateway storage uses built-in SQLite
+
+**Context.** §3 planned Postgres for the gateway's index, tokens and audit log.
+Talking to Postgres from Node needs the `pg` driver, a dependency that was not in
+the set approved for Milestone 2.
+
+**Decision.** Use SQLite through Node's built-in `node:sqlite` module.
+
+**Why.**
+
+- Zero new dependencies.
+- Built-in full-text search (FTS5).
+- One file to back up.
+- The append-only audit rule is enforced by database triggers.
+
+**Trade-offs.**
+
+- `node:sqlite` is still flagged "experimental" in Node 22. Its API could change in a future Node upgrade.
+- SQLite suits a single gateway server, which is the Phase 1 plan. Several gateway servers would need Postgres.
+
+**Containment.** All SQL lives behind `apps/gateway/src/store.ts` and the
+modules that call it. Moving to Postgres is a contained change, plus approval for
+the `pg` dependency.
+
+**Revisit when:** we run more than one gateway instance, or a Node upgrade breaks `node:sqlite`.

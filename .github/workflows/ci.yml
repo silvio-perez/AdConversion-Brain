@@ -46,8 +46,15 @@ jobs:
       - run: pnpm stack:init
       - run: pnpm stack:up
       - run: pnpm stack:seed
+      - name: Start gateway
+        run: |
+          pnpm gateway > gateway.log 2>&1 &
+          for i in $(seq 30); do curl -sf localhost:8787/healthz && exit 0; sleep 1; done
+          cat gateway.log; exit 1
       - name: Isolation and change-control tests
         run: pnpm test:stack
       - name: Stack logs on failure
         if: failure()
-        run: pnpm stack:logs --no-follow --tail 200
+        run: |
+          cat gateway.log || true
+          pnpm stack:logs --no-follow --tail 200
