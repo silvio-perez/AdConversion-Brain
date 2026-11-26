@@ -16,7 +16,15 @@
     "env:check": "bash scripts/doctor.sh",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:licenses",
     "check:licenses": "node scripts/check-licenses.mjs",
-    "check:audit": "pnpm audit --prod --audit-level high"
+    "check:audit": "pnpm audit --prod --audit-level high",
+    "stack:init": "bash scripts/stack-init.sh",
+    "stack:up": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env up -d --wait",
+    "stack:down": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env down",
+    "stack:reset": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env down -v",
+    "stack:logs": "docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env logs -f",
+    "check:knowledge": "vitest run tools/knowledge",
+    "stack:seed": "node tools/stack/src/seed.ts",
+    "test:stack": "BRAIN_STACK=1 vitest run tools/stack"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",

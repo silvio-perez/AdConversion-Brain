@@ -29,3 +29,25 @@ jobs:
         run: pnpm check:licenses
       - name: Vulnerability audit (SEC-SUP-2)
         run: pnpm check:audit
+
+  isolation:
+    # Boots the real stack (Forgejo + Postgres), seeds synthetic data and proves
+    # client isolation and change control on every push (SEC-ISO-4, SEC-INT-1).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm stack:init
+      - run: pnpm stack:up
+      - run: pnpm stack:seed
+      - name: Isolation and change-control tests
+        run: pnpm test:stack
+      - name: Stack logs on failure
+        if: failure()
+        run: pnpm stack:logs --no-follow --tail 200

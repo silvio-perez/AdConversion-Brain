@@ -28,4 +28,6 @@ before making structural changes.
 - `pnpm env:check`: verify the machine is ready.
 - `pnpm check`: lint, typecheck, tests, license policy. Must pass before commit.
 - `pnpm format`: auto-fix formatting.
+- `pnpm stack:init && pnpm stack:up && pnpm stack:seed`: local Forgejo + Postgres with synthetic data.
+- `pnpm test:stack`: live isolation and change-control tests. Required for any access-related change.
 - Small commits with clear messages. Update docs alongside code.

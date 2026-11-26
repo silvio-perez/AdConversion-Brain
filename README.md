@@ -19,6 +19,11 @@ Requirements: Node 22 (`.nvmrc`), pnpm via `corepack enable`, Git, and Docker (f
 pnpm install
 pnpm env:check   # is this machine ready?
 pnpm check       # lint, typecheck, tests, license policy
+
+# Local stack (needs Docker)
+pnpm stack:init && pnpm stack:up && pnpm stack:seed
+pnpm test:stack  # prove client isolation
+# Forgejo UI: http://localhost:3000 (credentials in deploy/local/.env)
 ```
 
 AI coding agents: see [AGENTS.md](AGENTS.md).

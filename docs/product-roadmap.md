@@ -38,7 +38,7 @@ Deliverables:
 
 **Teaches:** why a monorepo, what CI is protecting you from.
 
-### Milestone 1: Local stack and knowledge structure (1 week)
+### Milestone 1: Local stack and knowledge structure (1 week) ✅ Done 2026-11-26 (see `docs/milestones/m1-local-stack.md`)
 
 **Work:**
 
