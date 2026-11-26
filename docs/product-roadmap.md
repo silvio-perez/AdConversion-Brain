@@ -111,6 +111,8 @@ Deliverables:
 
 ### Milestone 6: Security gate and pilot (1 week + pilot)
 
+**Detailed plan:** `docs/deployment-plan.md` (awaiting approval).
+
 **Work:**
 
 - Production deployment to approved AdConversion infrastructure (**requires explicit approval**).

@@ -13,6 +13,7 @@ Private, model-agnostic knowledge and intelligence platform for AdConversion emp
 - [Reviewing proposals](docs/reviewing-proposals.md)
 - [Publishing skills](docs/publishing-skills.md)
 - [Grain ingestion](docs/ingestion.md)
+- [Deployment plan (Milestone 6)](docs/deployment-plan.md)
 
 Development uses synthetic data only.
 
