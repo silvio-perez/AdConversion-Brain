@@ -1,6 +1,6 @@
 # Product Roadmap: AdConversion Brain
 
-**Status:** Draft. It assumes Option C from `architecture-decision.md` and changes if a different option is approved.
+**Status:** Active. Option C was accepted on 2026-11-26 (see ADR-001 §7).
 **Date:** 2026-11-25
 
 **Principles:**
@@ -11,7 +11,7 @@
 
 ---
 
-## Phase 0: Discovery (DONE, awaiting approval)
+## Phase 0: Discovery (DONE, approved 2026-11-26)
 
 Deliverables:
 
@@ -65,7 +65,12 @@ Deliverables:
 - Append-only audit log (SEC-AUD-1, SEC-AUD-2).
 - **Isolation test suite** (SEC-ISO-4).
 
-**Done when:** Claude Code (and a second harness, to prove the model-agnostic claim) can answer questions about Acme with a token that cannot see Globex, and every access appears in the audit log.
+- A REST API with a generated OpenAPI spec, sharing the same backend as MCP.
+
+**Done when:**
+
+- A scripted conformance suite passes from **Claude Code, OpenAI Codex CLI and Gemini CLI**: answering questions about Acme with a token that cannot see Globex.
+- Every access appears in the audit log, labelled by harness and vendor.
 
 **Teaches:** what MCP actually is, how token scoping works.
 
@@ -88,7 +93,7 @@ Deliverables:
 
 - A `skills` repo using the `SKILL.md` folder convention.
 - Releases are Git tags (immutable versions), with a "required or optional" manifest.
-- MCP tools `list_skills`, `get_skill`, plus a sync script that installs approved versions to `~/.claude/skills` and `~/.agents/skills`.
+- MCP and REST `list_skills`/`get_skill`, plus a sync script that installs approved versions for every harness: `~/.claude/skills`, `~/.agents/skills` (Codex), and a Gemini CLI extension.
 
 **Done when:** a skill is edited, reviewed, released as v2, and staff pick up v2 with one command.
 
@@ -97,7 +102,7 @@ Deliverables:
 **Work:**
 
 - A worker polls Grain for new recordings, maps each to a client (by Grain company or tag), and pulls the transcript.
-- LLM extraction through a provider adapter, restricted to the approved list (SEC-EGR-3).
+- LLM extraction through a provider adapter (Bedrock/Claude by default; Vertex/Gemini, OpenAI and local models as alternatives), restricted to the approved list (SEC-EGR-3). A synthetic evaluation set compares providers before any switch.
 - Prompts treat the transcript as untrusted data (SEC-INT-3).
 - The worker compares against the current knowledge base and opens **one pull request per meeting**, with proposed edits and citations (meeting, timestamp, quote).
 - Developed entirely against **synthetic transcripts**.
@@ -120,6 +125,7 @@ Deliverables:
 
 ## Phase 2: Adoption and scale (after the pilot)
 
+- A public, OAuth-protected MCP endpoint so the cloud apps (claude.ai, ChatGPT, the Gemini app) can connect. Needs a separate approval.
 - Ingestion from Google Drive and Docs, Slack summaries and ClickUp (each new source is a new approved egress path).
 - Semantic search (pgvector) if full-text search proves insufficient.
 - A lightweight review inbox UI if Forgejo's pull request UI creates friction for non-technical reviewers.

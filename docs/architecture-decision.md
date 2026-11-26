@@ -1,7 +1,7 @@
 # ADR-001: Foundation for AdConversion Brain
 
-**Status:** PROPOSED. Awaiting founder approval. Nothing will be built until this is approved.
-**Date:** 2026-11-25
+**Status:** ACCEPTED by Silvio Perez on 2026-11-26. Decisions are recorded in §7.
+**Date:** 2026-11-25 (proposed), 2026-11-26 (accepted)
 **Evidence:** `docs/technical-discovery.md`
 
 ---
@@ -221,3 +221,69 @@ These are consequential, so I'm asking rather than assuming.
    Recommended: (a) or (b), with approved providers listed in config and enforced by the gateway. This is also a contract question: check what our client MSAs say about subprocessors.
 
 5. **Identity provider:** Google Workspace sign-in for staff (assumed).
+
+---
+
+## 7. Decisions (accepted 2026-11-26)
+
+| # | Decision | Choice |
+|---|---|---|
+| 1 | Foundation | **Option C:** greenfield, Git-backed. Baalda is used as a design reference only. |
+| 2 | Git hosting | **Self-hosted Forgejo** |
+| 3 | Infrastructure | **AWS**, in an AdConversion-owned account, in the region closest to most clients. Start with one server running Docker Compose and daily encrypted backups to S3. Access through Tailscale or Google SSO only. No Kubernetes or managed database until usage justifies it. |
+| 4 | LLM data policy | **Approved processors, every transfer logged.** The default for client data is Claude via AWS Bedrock in our account. The fallback is a direct vendor API under business terms with zero data retention. The approved list lives in config and the gateway enforces it. |
+| 5 | Identity | **Google Workspace SSO** for staff, with two-factor authentication enforced in Workspace |
+| 6 | Privacy principle | Reframed from "no external transmission" to **"only approved vendors, every transfer logged."** |
+| 7 | **LLM interoperability** (added by founder) | **The Brain must plug into any LLM and agent harness:** Claude, OpenAI Codex/ChatGPT, Google Gemini and future ones. See §8. |
+
+---
+
+## 8. Requirement: plugs into any LLM
+
+"Any LLM" has two sides, and we design for both.
+
+### 8.1 Consuming the Brain (agents read and propose)
+
+This is the side that matters most. The Brain never calls the model here: the model's harness calls the Brain.
+
+| Interface | Who uses it | Why |
+|---|---|---|
+| **MCP** (Streamable HTTP, official SDK, spec-compliant OAuth) | Claude Code, Claude Desktop/Cowork, OpenAI Codex CLI, ChatGPT connectors, Gemini CLI, and Cursor and other IDEs | MCP is now the shared standard across Anthropic, OpenAI and Google tooling. One server serves all of them. |
+| **REST + OpenAPI spec** | Custom GPT Actions, Gemini or OpenAI function calling, n8n/Zapier, our own scripts, anything without MCP | It is the lowest common denominator. The same backend serves both interfaces, so nothing is duplicated. |
+| **Plain Git checkout** | Any local agent (Claude Code, Codex, Gemini CLI) working on files directly, read-only | It is the ultimate fallback. Markdown in Git needs no integration at all. |
+
+Rules that keep it truly vendor-neutral:
+
+- **No vendor-specific content.** Knowledge is plain markdown with a documented frontmatter schema. Prompts and instructions never assume a specific model ("as Claude, you...").
+- **Skills are portable.**
+  - Canonical format: a folder with `SKILL.md` (name and description frontmatter), plus resources.
+  - The skills sync tool writes each approved skill to each harness's location: `~/.claude/skills`, `~/.agents/skills` (Codex and the open agents convention), and a Gemini CLI extension or `GEMINI.md` include.
+  - Skills are also served over MCP and REST, so harnesses without a local skills directory can still fetch them.
+- **Tool design suits weaker models too.** Tool names and descriptions are short and unambiguous, results are small and paginated, and errors are structured. That way smaller or non-Claude models use the tools correctly.
+- **Conformance tests.** The Milestone 2 definition of done requires the same scripted tasks to pass from Claude Code, Codex CLI and Gemini CLI.
+
+### 8.2 The Brain calling models (ingestion and extraction)
+
+- One provider interface (`complete`, `extract_structured`, `embed`) with adapters for:
+  - **Bedrock (Claude)**, the default for client data
+  - **Vertex AI (Gemini)**
+  - **OpenAI / Azure OpenAI**
+  - **Local models** (OpenAI-compatible endpoint)
+- We evaluated thin libraries for this (for example the Vercel AI SDK or LiteLLM) against writing about 200 lines ourselves. We choose at Milestone 5.
+- The model is chosen per task in config. Every provider must be on the approved list (SEC-EGR-3).
+- Prompts and outputs are validated with schemas, so swapping models cannot silently corrupt proposals. An evaluation set of synthetic transcripts compares providers before any switch.
+
+### 8.3 Security consequence (important)
+
+When an employee connects Codex or Gemini to the Brain, client knowledge flows to **that** vendor. The Brain cannot see which model sits behind a harness.
+
+Controls:
+
+- **One token per harness.** Each token is labelled with its harness and vendor (SEC-AUTH-7).
+- The gateway refuses to give client data to a token whose vendor is not approved for that client (SEC-EGR-6).
+- Staff use company business accounts for every vendor, never personal ones.
+
+### 8.4 Network consequence
+
+- **Local harnesses** (Claude Code, Codex CLI, Gemini CLI) reach the Brain over Tailscale. That is the Phase 1 scope.
+- **Cloud-hosted apps** (claude.ai, ChatGPT, the Gemini app) call MCP from *their* servers. They therefore need a **public, OAuth-protected endpoint**. This is deferred to Phase 2 and needs a separate approval.

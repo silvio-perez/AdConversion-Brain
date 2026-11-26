@@ -1,6 +1,6 @@
 # Security Requirements: AdConversion Brain
 
-**Status:** Draft for review.
+**Status:** Accepted with ADR-001 (2026-11-26).
 **Date:** 2026-11-25
 
 These requirements apply whichever foundation is chosen. Each requirement has an ID so tests and code can reference it.
@@ -70,6 +70,7 @@ Main threats, in rough order of likelihood:
   - they are shown once
   - they can be revoked instantly
   - they are accepted **only in the `Authorization` header, never in URLs** (Baalda's server accepts them in the URL; we must not)
+- **SEC-AUTH-7 (MUST):** Each agent token is issued per harness and records the vendor behind it (for example `codex-cli/openai`, `gemini-cli/google`, `claude-code/anthropic`). Combined with SEC-EGR-6, the gateway refuses to serve a client's content to a vendor that is not approved for that client. Staff connect only from company business accounts, never personal ones.
 - **SEC-AUTH-6 (SHOULD):** Failed-authentication rate limiting on every endpoint, including token use.
 
 ### 2.3 Authorization and client isolation (T1)
