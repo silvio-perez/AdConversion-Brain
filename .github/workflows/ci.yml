@@ -29,6 +29,8 @@ jobs:
         run: pnpm check:licenses
       - name: Vulnerability audit (SEC-SUP-2)
         run: pnpm check:audit
+      - name: No secrets in Git (SEC-DATA-4)
+        run: pnpm check:secrets
 
   isolation:
     # Boots the real stack (Forgejo + Postgres), seeds synthetic data and proves
@@ -58,3 +60,46 @@ jobs:
         run: |
           cat gateway.log || true
           pnpm stack:logs --tail 200
+
+  production:
+    # The production stack exactly as deployed: image built from source,
+    # internal-only data network, allowlist egress. Proves isolation, egress
+    # policy and backup/restore on every push (SEC-EGR-2, SEC-DATA-3).
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BRAIN_ENV_DIR: ${{ github.workspace }}/deploy/production
+      BRAIN_CLI: ${{ github.workspace }}/deploy/production/brain-admin.sh
+      FORGEJO_CONTAINER: brain-forgejo-1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build image and start production stack
+        run: |
+          WITH_SYNTHETIC=1 deploy/production/init-secrets.sh
+          deploy/production/compose.sh build
+          deploy/production/compose.sh up -d --no-build --wait db forgejo edge egress-proxy
+      - name: Seed synthetic data and start gateway
+        run: |
+          pnpm stack:seed
+          deploy/production/compose.sh up -d --no-build --wait
+      - name: Live tests against production
+        run: pnpm test:stack
+      - name: Egress drill
+        run: deploy/production/egress-drill.sh
+      - name: Backup, destroy, restore
+        run: |
+          deploy/production/backup.sh
+          deploy/production/restore.sh "$(ls -1t deploy/production/backups/brain-*.tar.gz | head -1)" --yes-destroy-current-data
+      - name: Live tests and egress drill against the restored stack
+        run: |
+          pnpm test:stack
+          deploy/production/egress-drill.sh
+      - name: Logs on failure
+        if: failure()
+        run: deploy/production/compose.sh logs --tail 100

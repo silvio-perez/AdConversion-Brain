@@ -7,4 +7,8 @@ coverage/
 *.log
 .DS_Store
 deploy/local/data/
-deploy/local/gateway.env
+deploy/production/backups/
+
+# Secrets: every env file under deploy/, except committed examples.
+deploy/**/*.env
+!deploy/**/*.env.example

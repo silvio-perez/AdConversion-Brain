@@ -1,0 +1,9 @@
+**/node_modules
+.git
+deploy/local
+deploy/production/*.env
+deploy/production/backups
+docs
+fixtures
+**/*.test.ts
+tools/stack

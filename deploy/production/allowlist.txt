@@ -1,0 +1,13 @@
+# Hosts the internal network may reach, one per line (leading dot = subdomains).
+# Every entry must have a reason and an approval. Review in the security gate.
+
+# Google Workspace sign-in for Forgejo (OIDC)
+accounts.google.com
+oauth2.googleapis.com
+openidconnect.googleapis.com
+www.googleapis.com
+
+# AWS Bedrock runtime (resolves to the VPC endpoint inside AWS). Set the region.
+bedrock-runtime.us-east-1.amazonaws.com
+
+# Grain API: add the exact host once the Grain API is approved (Milestone 6, D3).

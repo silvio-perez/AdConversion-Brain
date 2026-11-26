@@ -1,0 +1,14 @@
+# Inbound edge. Listens on the host's loopback only; Tailscale provides HTTPS
+# and the private network in front of it. Holds no data.
+{
+	auto_https off
+	admin off
+}
+
+:3000 {
+	reverse_proxy forgejo:3000
+}
+
+:8787 {
+	reverse_proxy gateway:8787
+}

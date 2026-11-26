@@ -1,0 +1,150 @@
+# Production stack. Data-holding services sit on `internal`, a network with no
+# route to the internet. Two edge services bridge it:
+#   edge         inbound only, published on the host's 127.0.0.1 (Tailscale in front)
+#   egress-proxy outbound only, allowlisted hosts (allowlist.txt)
+name: brain
+
+x-app: &app
+  build:
+    context: ../..
+    dockerfile: deploy/production/Dockerfile
+  image: adconversion-brain:${BRAIN_VERSION:-local}
+  networks: [internal]
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+
+services:
+  db:
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
+    restart: unless-stopped
+    networks: [internal]
+    environment:
+      POSTGRES_USER: brain
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?missing}
+      POSTGRES_DB: forgejo
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brain -d forgejo"]
+      interval: 5s
+      retries: 30
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo@sha256:946243edbab116d5bb78b73ea68af6f3d69229ba1b1ed958dd82c3481167f3e0
+    restart: unless-stopped
+    networks: [internal]
+    depends_on:
+      db: { condition: service_healthy }
+    volumes: [forgejo-data:/data]
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      # Outbound (Google sign-in only) goes through the allowlist proxy.
+      HTTPS_PROXY: http://egress-proxy:3128
+      HTTP_PROXY: http://egress-proxy:3128
+      NO_PROXY: localhost,127.0.0.1,db,gateway
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: db:5432
+      FORGEJO__database__NAME: forgejo
+      FORGEJO__database__USER: brain
+      FORGEJO__database__PASSWD: ${POSTGRES_PASSWORD}
+      FORGEJO__server__ROOT_URL: ${FORGEJO_ROOT_URL:?missing}
+      FORGEJO__server__DISABLE_SSH: "true"
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__security__SECRET_KEY: ${FORGEJO_SECRET_KEY:?missing}
+      FORGEJO__security__INTERNAL_TOKEN: ${FORGEJO_INTERNAL_TOKEN:?missing}
+      FORGEJO__service__DISABLE_REGISTRATION: "false" # sign-up ONLY via Google (next line)
+      FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
+      FORGEJO__service__REQUIRE_SIGNIN_VIEW: "true"
+      FORGEJO__service__DEFAULT_ORG_VISIBILITY: private
+      FORGEJO__service__DEFAULT_USER_VISIBILITY: private
+      FORGEJO__repository__DEFAULT_PRIVATE: private
+      FORGEJO__repository__FORCE_PRIVATE: "true"
+      FORGEJO__openid__ENABLE_OPENID_SIGNIN: "false"
+      FORGEJO__openid__ENABLE_OPENID_SIGNUP: "false"
+      FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"
+      FORGEJO__oauth2_client__ACCOUNT_LINKING: disabled
+      FORGEJO__oauth2_client__USERNAME: email
+      FORGEJO__cron_0X2E_update_checker__ENABLED: "false"
+      FORGEJO__server__OFFLINE_MODE: "true"
+      FORGEJO__picture__DISABLE_GRAVATAR: "true"
+      FORGEJO__picture__ENABLE_FEDERATED_AVATAR: "false"
+      FORGEJO__federation__ENABLED: "false"
+      FORGEJO__actions__ENABLED: "false"
+      FORGEJO__packages__ENABLED: "false"
+      FORGEJO__mailer__ENABLED: "false"
+      FORGEJO__log__LEVEL: Warn
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/healthz || exit 1"]
+      interval: 5s
+      retries: 60
+
+  gateway:
+    <<: *app
+    depends_on:
+      forgejo: { condition: service_healthy }
+    volumes:
+      - gateway-data:/data
+    environment:
+      FORGEJO_URL: http://forgejo:3000
+      FORGEJO_ORG: adconversion
+      FORGEJO_GATEWAY_TOKEN: ${FORGEJO_GATEWAY_TOKEN:-}
+      FORGEJO_PROPOSER_TOKEN: ${FORGEJO_PROPOSER_TOKEN:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8787/healthz || exit 1"]
+      interval: 5s
+      retries: 30
+
+  # One-shot job, run hourly by a systemd timer: `docker compose run --rm ingest`.
+  ingest:
+    <<: *app
+    profiles: [jobs]
+    restart: "no"
+    command:
+      [
+        "node",
+        "--disable-warning=ExperimentalWarning",
+        "apps/ingest/src/cli.ts",
+        "--model",
+        "${INGEST_MODEL:-local}",
+      ]
+    volumes:
+      - gateway-data:/data
+    environment:
+      BRAIN_URL: http://gateway:8787
+      INGEST_TOKEN: ${INGEST_TOKEN:-}
+      INGEST_BEDROCK_MODEL: ${INGEST_BEDROCK_MODEL:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      HTTPS_PROXY: http://egress-proxy:3128
+      NO_PROXY: gateway,forgejo
+
+  edge:
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    restart: unless-stopped
+    networks: [internal, edge]
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:8787:8787"
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro]
+    depends_on: [forgejo, gateway]
+
+  egress-proxy:
+    image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
+    restart: unless-stopped
+    networks: [internal, egress]
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+      - ./allowlist.txt:/etc/squid/allowlist.txt:ro
+
+networks:
+  internal:
+    internal: true # no route to the internet
+  edge: {}
+  egress: {}
+
+volumes:
+  db-data:
+  forgejo-data:
+  gateway-data:

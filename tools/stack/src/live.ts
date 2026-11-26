@@ -4,10 +4,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect } from "vitest";
 
+const BRAIN_CLI = (process.env.BRAIN_CLI ?? "pnpm -s brain").split(" ");
 export const GATEWAY = process.env.BRAIN_URL ?? "http://localhost:8787";
 
 export function gatewayEnv(): Record<string, string> {
-  const file = join(import.meta.dirname, "../../../deploy/local/gateway.env");
+  const file = join(
+    process.env.BRAIN_ENV_DIR ?? join(import.meta.dirname, "../../../deploy/local"),
+    "gateway.env",
+  );
   if (!existsSync(file)) return {};
   return Object.fromEntries(
     readFileSync(file, "utf8")
@@ -22,7 +26,11 @@ export function brainCli(...args: string[]): { ok: boolean; out: string } {
   try {
     return {
       ok: true,
-      out: execFileSync("pnpm", ["-s", "brain", ...args], { encoding: "utf8", stdio: "pipe" }),
+      // BRAIN_CLI runs the admin CLI elsewhere, e.g. inside the production container.
+      out: execFileSync(BRAIN_CLI[0] ?? "pnpm", [...BRAIN_CLI.slice(1), ...args], {
+        encoding: "utf8",
+        stdio: "pipe",
+      }),
     };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string };

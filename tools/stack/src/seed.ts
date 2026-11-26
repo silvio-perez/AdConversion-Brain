@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FORGEJO_URL, loadLocalEnv, ORG } from "./env.ts";
+import { ENV_DIR, FORGEJO_URL, loadLocalEnv, ORG } from "./env.ts";
 import { basicAuth, type Credentials, forgejo } from "./forgejo.ts";
 
 const env = loadLocalEnv();
@@ -17,7 +17,8 @@ const userPassword = env.SYNTHETIC_USER_PASSWORD ?? "";
 if (!admin.password || !userPassword) throw new Error("Run `pnpm stack:init` first.");
 
 const FIXTURES = join(import.meta.dirname, "../../../fixtures/synthetic");
-const GATEWAY_ENV = join(import.meta.dirname, "../../../deploy/local/gateway.env");
+const GATEWAY_ENV = join(ENV_DIR, "gateway.env");
+const FORGEJO_CONTAINER = process.env.FORGEJO_CONTAINER ?? "brain-local-forgejo-1";
 const REPOS = ["company", "skills", "client-acme-analytics", "client-globex-cloud"];
 // dave.synthetic exists only for tests that change team membership.
 const USERS = ["alice.synthetic", "bob.synthetic", "carol.synthetic", "dave.synthetic"];
@@ -122,7 +123,7 @@ function ensureAdmin() {
         "exec",
         "-u",
         "git",
-        "brain-local-forgejo-1",
+        FORGEJO_CONTAINER,
         "forgejo",
         "admin",
         "user",
