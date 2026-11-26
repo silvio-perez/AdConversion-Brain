@@ -130,7 +130,8 @@ services:
       - "127.0.0.1:3000:3000"
       - "127.0.0.1:8787:8787"
     volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro]
-    depends_on: [forgejo, gateway]
+    # Not on the gateway: the edge must start before the gateway has tokens.
+    depends_on: [forgejo]
 
   egress-proxy:
     image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029

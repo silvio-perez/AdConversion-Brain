@@ -370,4 +370,4 @@ await ensureInitialReleases();
 const envValues = readGatewayEnv();
 for (const acct of SERVICE_ACCOUNTS) await ensureServiceAccount(acct, envValues);
 writeGatewayEnv(envValues);
-console.log("Done. Sign in at http://localhost:3000 (credentials in deploy/local/.env).");
+console.log(`Done. Sign in at ${FORGEJO_URL} (credentials in ${join(ENV_DIR, ".env")}).`);
