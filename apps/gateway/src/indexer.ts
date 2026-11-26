@@ -10,8 +10,9 @@ const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
  */
 export async function syncIndex(db: Store, source: ContentSource): Promise<string[]> {
   const known = new Map(
+    // Rows with "#" are bookkeeping for other syncs (e.g. skills#releases), not repositories.
     (
-      db.prepare("SELECT name, commit_sha FROM sources").all() as {
+      db.prepare("SELECT name, commit_sha FROM sources WHERE name NOT LIKE '%#%'").all() as {
         name: string;
         commit_sha: string;
       }[]

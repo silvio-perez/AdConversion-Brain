@@ -89,6 +89,20 @@ describe("skills over MCP and REST", () => {
       expect((await gw.get(path, staff)).status, path).toBe(404);
   });
 
+  it("re-syncing with nothing changed does no work (no index/skills churn)", async () => {
+    const { syncIndex } = await import("./indexer.ts");
+    const { FixtureSource } = await import("./content.ts");
+    const { FixtureSkillSource, syncSkills } = await import("./skills.ts");
+    const { join } = await import("node:path");
+    const { ROOT } = await import("./testkit.ts");
+    const source = new FixtureSource(join(ROOT, "fixtures/synthetic"));
+    const skills = new FixtureSkillSource(join(ROOT, "fixtures/synthetic/skills"));
+    for (let i = 0; i < 2; i++) {
+      expect(await syncIndex(gw.db, source)).toEqual([]);
+      expect(await syncSkills(gw.db, skills)).toEqual([]);
+    }
+  });
+
   it("drafts are never served: only released versions are in the catalog", () => {
     const rows = gw.db.prepare("SELECT tag FROM skills ORDER BY name").all();
     expect(rows).toEqual([{ tag: "linkedin-ad-copy/v1" }, { tag: "meeting-recap/v1" }]);

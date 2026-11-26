@@ -95,7 +95,7 @@ services:
       FORGEJO_GATEWAY_TOKEN: ${FORGEJO_GATEWAY_TOKEN:-}
       FORGEJO_PROPOSER_TOKEN: ${FORGEJO_PROPOSER_TOKEN:-}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8787/healthz || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8787/healthz || exit 1"]
       interval: 5s
       retries: 30
 
