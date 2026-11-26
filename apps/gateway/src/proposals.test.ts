@@ -101,6 +101,7 @@ describe("opening proposals", () => {
       /^proposal\/alice-synthetic\/\d{8}-learnings-2026-11-webinar-test-[0-9a-f]{4}$/,
     );
     expect(pr?.body).toContain("synthetic-meeting-0004");
+    expect(pr?.title).toMatch(/^November webinar test: Record the November webinar test/);
     expect(pr?.body).toContain("@alice.synthetic");
     expect(pr?.body).toContain("claude-code, anthropic");
     expect(pr?.body).toContain("Nothing from another client appears");

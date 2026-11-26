@@ -27,7 +27,8 @@
     "test:stack": "BRAIN_STACK=1 vitest run tools/stack --testTimeout=60000",
     "gateway": "node --disable-warning=ExperimentalWarning --env-file-if-exists=deploy/local/.env --env-file-if-exists=deploy/local/gateway.env apps/gateway/src/main.ts",
     "brain": "node --disable-warning=ExperimentalWarning --env-file-if-exists=deploy/local/.env --env-file-if-exists=deploy/local/gateway.env apps/gateway/src/cli.ts",
-    "skills": "node tools/skills-sync/src/cli.ts"
+    "skills": "node tools/skills-sync/src/cli.ts",
+    "ingest": "node --disable-warning=ExperimentalWarning apps/ingest/src/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",

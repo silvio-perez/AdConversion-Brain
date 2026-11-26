@@ -48,6 +48,15 @@ const TEAMS = [
     reviews: ["client-acme-analytics"],
   },
   {
+    // Service identity for Grain ingestion: may PROPOSE to client repositories
+    // (Forgejo write is needed to open PRs), never approve (not on any approver list).
+    name: "ingestion",
+    permission: "write",
+    repos: ["client-acme-analytics", "client-globex-cloud"],
+    members: ["brain-ingest"],
+    reviews: [],
+  },
+  {
     name: "pod-globex",
     permission: "write",
     repos: ["client-globex-cloud"],
@@ -350,6 +359,7 @@ for (const r of REPOS) {
   await ensureRepo(r);
   await ensureContent(r);
 }
+await ensureUser("brain-ingest", randomBytes(24).toString("base64url"));
 for (const t of TEAMS) await ensureTeam(t);
 for (const r of REPOS) await ensureProtection(r);
 await ensureTagProtection();

@@ -1,7 +1,7 @@
 {
-  "$comment": "Which AI vendors may receive each client's knowledge (SEC-EGR-3, SEC-EGR-6, SEC-AUTH-7). Clients without an override use approvedVendors. Synthetic example: Globex allows Anthropic only, to exercise the rule.",
-  "approvedVendors": ["anthropic", "openai", "google"],
+  "$comment": "Which AI vendors may receive each client's knowledge (SEC-EGR-3, SEC-EGR-6, SEC-AUTH-7). Clients without an override use approvedVendors. Synthetic example: Globex allows Anthropic only, to exercise the rule. 'local' means a model running on our own infrastructure that sends nothing to any third party (the ingestion stand-in).",
+  "approvedVendors": ["anthropic", "openai", "google", "local"],
   "clientOverrides": {
-    "globex-cloud": ["anthropic"]
+    "globex-cloud": ["anthropic", "local"]
   }
 }

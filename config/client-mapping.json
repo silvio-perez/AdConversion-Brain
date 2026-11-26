@@ -1,0 +1,14 @@
+{
+  "$comment": "How a Grain meeting is matched to a client. A meeting is ingested only if it matches EXACTLY one client; otherwise it is skipped (never guessed). Synthetic example domains. 'owner' is the accountable human named in proposals.",
+  "internalDomains": ["adconversion.example"],
+  "clients": {
+    "acme-analytics": {
+      "domains": ["acme-analytics.example"],
+      "owner": "alice.synthetic"
+    },
+    "globex-cloud": {
+      "domains": ["globex-cloud.example"],
+      "owner": "bob.synthetic"
+    }
+  }
+}

@@ -33,5 +33,6 @@ before making structural changes. All access decisions live in
 - `pnpm gateway`: run the Brain Gateway locally (after the stack is seeded).
 - `pnpm brain token create ...`: issue a scoped agent token (see `docs/connecting-agents.md`).
 - `BRAIN_TOKEN=... pnpm skills`: install published skills locally.
+- `INGEST_TOKEN=... pnpm ingest --dry-run`: run Grain ingestion (synthetic meetings, local model).
 - `pnpm test:stack`: live isolation and change-control tests (needs stack + gateway running). Required for any access-related change.
 - Small commits with clear messages. Update docs alongside code.

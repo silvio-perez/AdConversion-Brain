@@ -42,6 +42,12 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  apps/ingest:
+    dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   packages/knowledge:
     dependencies:
       yaml:

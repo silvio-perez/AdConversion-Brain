@@ -97,7 +97,7 @@ Deliverables:
 
 **Done when:** a skill is edited, reviewed, released as v2, and staff pick up v2 with one command.
 
-### Milestone 5: Ingestion v1, Grain (2–3 weeks)
+### Milestone 5: Ingestion v1, Grain (2–3 weeks) ✅ Pipeline done 2026-11-26 with local model (see `docs/milestones/m5-ingestion.md`); Bedrock + Grain API pending
 
 **Work:**
 

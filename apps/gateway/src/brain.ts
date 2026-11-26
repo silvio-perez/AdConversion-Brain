@@ -2,7 +2,7 @@
 // (SEC-AUD-1). MCP and REST are thin adapters over this class, so isolation is
 // implemented exactly once.
 import { randomUUID } from "node:crypto";
-import { validateDocument } from "@brain/knowledge";
+import { splitFrontmatter, validateDocument } from "@brain/knowledge";
 import { type VendorPolicy, vendorAllowed } from "./policy.ts";
 import {
   branchName,
@@ -315,7 +315,18 @@ export class Brain {
       .prepare("SELECT title FROM documents WHERE source = ? AND path = ?")
       .get(input.source, input.path) as { title: string } | undefined;
     const firstLine = input.summary.trim().split("\n")[0] ?? "";
-    const title = `${docTitle?.title ?? input.path}: ${firstLine.length > 70 ? `${firstLine.slice(0, 67)}...` : firstLine}`;
+    // Reviewers scan the PR list: lead with the document's title (from the
+    // index for updates, from the proposed frontmatter for new documents).
+    const proposedFm = splitFrontmatter(input.content)?.data as
+      | { title?: unknown; name?: unknown }
+      | undefined;
+    const proposedTitle =
+      typeof proposedFm?.title === "string"
+        ? proposedFm.title
+        : typeof proposedFm?.name === "string"
+          ? proposedFm.name
+          : null;
+    const title = `${docTitle?.title ?? proposedTitle ?? input.path}: ${firstLine.length > 70 ? `${firstLine.slice(0, 67)}...` : firstLine}`;
     const body = proposalBody({
       summary: input.summary.trim(),
       path: input.path,
