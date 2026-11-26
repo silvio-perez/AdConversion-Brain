@@ -2,7 +2,7 @@
 
 Private, model-agnostic knowledge and intelligence platform for AdConversion employees and AI agents.
 
-**Current phase:** Phase 1 MVP. Milestones 0–2 complete (read-only MCP gateway).
+**Current phase:** Phase 1 MVP. Milestones 0–3 complete (MCP gateway with human-approved proposals).
 
 - [Technical discovery](docs/technical-discovery.md)
 - [Architecture decision (proposed)](docs/architecture-decision.md)
@@ -10,6 +10,7 @@ Private, model-agnostic knowledge and intelligence platform for AdConversion emp
 - [Product roadmap](docs/product-roadmap.md)
 - [Connecting AI tools](docs/connecting-agents.md)
 - [Knowledge conventions](docs/knowledge-conventions.md)
+- [Reviewing proposals](docs/reviewing-proposals.md)
 
 Development uses synthetic data only.
 

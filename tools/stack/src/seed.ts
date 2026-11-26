@@ -2,7 +2,7 @@
 // docs/knowledge-conventions.md. Idempotent: safe to run repeatedly.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FORGEJO_URL, loadLocalEnv, ORG } from "./env.ts";
@@ -17,24 +17,66 @@ const userPassword = env.SYNTHETIC_USER_PASSWORD ?? "";
 if (!admin.password || !userPassword) throw new Error("Run `pnpm stack:init` first.");
 
 const FIXTURES = join(import.meta.dirname, "../../../fixtures/synthetic");
+const GATEWAY_ENV = join(import.meta.dirname, "../../../deploy/local/gateway.env");
 const REPOS = ["company", "skills", "client-acme-analytics", "client-globex-cloud"];
-const USERS = ["alice.synthetic", "bob.synthetic"];
+const USERS = ["alice.synthetic", "bob.synthetic", "carol.synthetic"];
+
+/**
+ * Human teams. `reviews` lists the repositories where this team's approval
+ * counts. Only human teams appear here, so a bot approval never counts.
+ */
 const TEAMS = [
-  { name: "all-staff", permission: "read", repos: ["company", "skills"], members: USERS },
+  {
+    name: "all-staff",
+    permission: "read",
+    repos: ["company", "skills"],
+    members: USERS,
+    reviews: [],
+  },
+  {
+    name: "knowledge-admins",
+    permission: "write",
+    repos: ["company", "skills"],
+    members: ["carol.synthetic"],
+    reviews: ["company", "skills"],
+  },
   {
     name: "pod-acme",
     permission: "write",
     repos: ["client-acme-analytics"],
     members: ["alice.synthetic"],
+    reviews: ["client-acme-analytics"],
   },
   {
     name: "pod-globex",
     permission: "write",
     repos: ["client-globex-cloud"],
     members: ["bob.synthetic"],
+    reviews: ["client-globex-cloud"],
   },
 ] as const;
 const UNITS = ["repo.code", "repo.pulls", "repo.issues", "repo.releases"];
+
+/**
+ * Service accounts used by the gateway. Each gets the narrowest Forgejo scope
+ * that does its job; branch protection stops both from touching `main`.
+ */
+const SERVICE_ACCOUNTS = [
+  {
+    user: "brain-gateway",
+    team: "gateway-readers",
+    permission: "read",
+    envKey: "FORGEJO_GATEWAY_TOKEN",
+    scopes: ["read:repository", "read:organization"],
+  },
+  {
+    user: "brain-proposer",
+    team: "proposers",
+    permission: "write",
+    envKey: "FORGEJO_PROPOSER_TOKEN",
+    scopes: ["write:repository", "read:organization"],
+  },
+] as const;
 
 const api = forgejo(admin);
 const log = (msg: string) => console.log(`  ${msg}`);
@@ -42,6 +84,24 @@ const log = (msg: string) => console.log(`  ${msg}`);
 function expectOk(res: { status: number; json: unknown }, what: string, allowed: number[] = []) {
   if (res.status >= 400 && !allowed.includes(res.status))
     throw new Error(`${what} failed (${res.status}): ${JSON.stringify(res.json)}`);
+}
+
+function readGatewayEnv(): Record<string, string> {
+  if (!existsSync(GATEWAY_ENV)) return {};
+  return Object.fromEntries(
+    readFileSync(GATEWAY_ENV, "utf8")
+      .split("\n")
+      .map((l) => /^([A-Z0-9_]+)=(.*)$/.exec(l.trim()))
+      .filter((m): m is RegExpExecArray => !!m)
+      .map((m) => [m[1], m[2]]),
+  );
+}
+
+function writeGatewayEnv(values: Record<string, string>) {
+  const text = Object.entries(values)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+  writeFileSync(GATEWAY_ENV, `${text}\n`, { mode: 0o600 });
 }
 
 function ensureAdmin() {
@@ -75,11 +135,11 @@ function ensureAdmin() {
   }
 }
 
-async function ensureUser(username: string) {
+async function ensureUser(username: string, password = userPassword) {
   const res = await api("POST", "/admin/users", {
     username,
     email: `${username}@brain.local`,
-    password: userPassword,
+    password,
     must_change_password: false,
     visibility: "private",
   });
@@ -143,101 +203,102 @@ async function ensureContent(name: string) {
   } else log(`${name} already has content`);
 }
 
-async function ensureProtection(name: string) {
-  const res = await api("POST", `/repos/${ORG}/${name}/branch_protections`, {
-    rule_name: "main",
-    enable_push: false, // nobody pushes directly: every change is a reviewed PR
+async function findTeam(name: string): Promise<{ id: number; name: string } | undefined> {
+  const list = await api("GET", `/orgs/${ORG}/teams`);
+  expectOk(list, "list teams");
+  return (list.json as { id: number; name: string }[]).find((t) => t.name === name);
+}
+
+async function ensureTeam(opts: {
+  name: string;
+  permission: string;
+  repos: readonly string[] | "all";
+  members: readonly string[];
+}) {
+  let team = await findTeam(opts.name);
+  if (!team) {
+    const units = opts.permission === "read" && opts.repos === "all" ? ["repo.code"] : UNITS;
+    const res = await api("POST", `/orgs/${ORG}/teams`, {
+      name: opts.name,
+      permission: opts.permission,
+      includes_all_repositories: opts.repos === "all",
+      can_create_org_repo: false,
+      units,
+      units_map: Object.fromEntries(units.map((u) => [u, opts.permission])),
+    });
+    expectOk(res, `create team ${opts.name}`);
+    team = res.json as { id: number; name: string };
+    log(`created team ${opts.name} (${opts.permission})`);
+  }
+  if (opts.repos !== "all")
+    for (const repo of opts.repos)
+      expectOk(await api("PUT", `/teams/${team.id}/repos/${ORG}/${repo}`), `add ${repo}`);
+  for (const user of opts.members)
+    expectOk(await api("PUT", `/teams/${team.id}/members/${user}`), `add ${user}`);
+  log(
+    `team ${opts.name}: ${opts.repos === "all" ? "all repos" : `[${opts.repos.join(", ")}]`}, members [${opts.members.join(", ")}]`,
+  );
+}
+
+/** Protect `main`: PR-only, one approval, and only approvals from the right human team count. */
+async function ensureProtection(repo: string) {
+  const reviewers = TEAMS.filter((t) => (t.reviews as readonly string[]).includes(repo)).map(
+    (t) => t.name,
+  );
+  const rule = {
+    enable_push: false, // nobody pushes directly, including admins and bots
     required_approvals: 1,
     block_on_rejected_reviews: true,
     dismiss_stale_approvals: true,
     apply_to_admins: true,
+    enable_approvals_whitelist: true,
+    approvals_whitelist_teams: reviewers,
+  };
+  const created = await api("POST", `/repos/${ORG}/${repo}/branch_protections`, {
+    rule_name: "main",
+    ...rule,
   });
-  expectOk(res, `protect ${name}`, [403, 409, 422]);
-  log(res.status < 400 ? `protected ${name}/main` : `${name}/main already protected`);
-}
-
-async function ensureTeam(team: (typeof TEAMS)[number]) {
-  const list = await api("GET", `/orgs/${ORG}/teams`);
-  expectOk(list, "list teams");
-  let found = (list.json as { id: number; name: string }[]).find((t) => t.name === team.name);
-  if (!found) {
-    const res = await api("POST", `/orgs/${ORG}/teams`, {
-      name: team.name,
-      permission: team.permission,
-      includes_all_repositories: false,
-      can_create_org_repo: false,
-      units: UNITS,
-      units_map: Object.fromEntries(UNITS.map((u) => [u, team.permission])),
-    });
-    expectOk(res, `create team ${team.name}`);
-    found = res.json as { id: number; name: string };
-    log(`created team ${team.name} (${team.permission})`);
+  if (created.status >= 400) {
+    expectOk(created, `protect ${repo}`, [403, 409, 422]);
+    expectOk(
+      await api("PATCH", `/repos/${ORG}/${repo}/branch_protections/main`, rule),
+      `update protection ${repo}`,
+    );
   }
-  for (const repo of team.repos)
-    expectOk(await api("PUT", `/teams/${found.id}/repos/${ORG}/${repo}`), `add ${repo}`);
-  for (const user of team.members)
-    expectOk(await api("PUT", `/teams/${found.id}/members/${user}`), `add ${user}`);
-  log(`team ${team.name}: repos [${team.repos.join(", ")}], members [${team.members.join(", ")}]`);
+  log(`protected ${repo}/main (approvals count from: ${reviewers.join(", ")})`);
 }
 
-// The gateway reads every repository through its own read-only account and
-// enforces per-client scope itself (defence in depth: it can never write).
-const GATEWAY_USER = "brain-gateway";
-const GATEWAY_ENV = join(import.meta.dirname, "../../../deploy/local/gateway.env");
-
-async function ensureGatewayAccount() {
+async function ensureServiceAccount(
+  acct: (typeof SERVICE_ACCOUNTS)[number],
+  envValues: Record<string, string>,
+) {
   const password = randomBytes(24).toString("base64url");
-  const created = await api("POST", "/admin/users", {
-    username: GATEWAY_USER,
-    email: `${GATEWAY_USER}@brain.local`,
-    password,
-    must_change_password: false,
-    visibility: "private",
+  await ensureUser(acct.user, password);
+  await ensureTeam({
+    name: acct.team,
+    permission: acct.permission,
+    repos: "all",
+    members: [acct.user],
   });
-  expectOk(created, "create gateway user", [422]);
-
-  const list = await api("GET", `/orgs/${ORG}/teams`);
-  let team = (list.json as { id: number; name: string }[]).find(
-    (t) => t.name === "gateway-readers",
-  );
-  if (!team) {
-    const res = await api("POST", `/orgs/${ORG}/teams`, {
-      name: "gateway-readers",
-      permission: "read",
-      includes_all_repositories: true,
-      can_create_org_repo: false,
-      units: ["repo.code"],
-      units_map: { "repo.code": "read" },
-    });
-    expectOk(res, "create gateway-readers team");
-    team = res.json as { id: number; name: string };
-  }
-  expectOk(await api("PUT", `/teams/${team.id}/members/${GATEWAY_USER}`), "add gateway to team");
-
-  if (existsSync(GATEWAY_ENV)) {
-    log("gateway account ready (token already in deploy/local/gateway.env)");
-    return;
-  }
-  // Fresh password used once to mint a token, then forgotten.
+  if (envValues[acct.envKey]) return;
+  // A fresh password is used once to mint the token, then forgotten.
   expectOk(
-    await api("PATCH", `/admin/users/${GATEWAY_USER}`, {
+    await api("PATCH", `/admin/users/${acct.user}`, {
       password,
-      login_name: GATEWAY_USER,
+      login_name: acct.user,
       source_id: 0,
     }),
-    "reset gateway password",
+    `reset ${acct.user} password`,
   );
-  const asGateway = forgejo({ username: GATEWAY_USER, password });
-  await asGateway("DELETE", `/users/${GATEWAY_USER}/tokens/gateway`);
-  const tok = await asGateway("POST", `/users/${GATEWAY_USER}/tokens`, {
+  const self = forgejo({ username: acct.user, password });
+  await self("DELETE", `/users/${acct.user}/tokens/gateway`);
+  const tok = await self("POST", `/users/${acct.user}/tokens`, {
     name: "gateway",
-    scopes: ["read:repository", "read:organization"],
+    scopes: acct.scopes,
   });
-  expectOk(tok, "create gateway token");
-  writeFileSync(GATEWAY_ENV, `FORGEJO_GATEWAY_TOKEN=${(tok.json as { sha1: string }).sha1}\n`, {
-    mode: 0o600,
-  });
-  log("created read-only gateway token -> deploy/local/gateway.env");
+  expectOk(tok, `create ${acct.user} token`);
+  envValues[acct.envKey] = (tok.json as { sha1: string }).sha1;
+  log(`created ${acct.user} token (${acct.scopes.join(", ")})`);
 }
 
 console.log(`Seeding ${FORGEJO_URL}`);
@@ -247,8 +308,11 @@ await ensureOrg();
 for (const r of REPOS) {
   await ensureRepo(r);
   await ensureContent(r);
-  await ensureProtection(r);
 }
 for (const t of TEAMS) await ensureTeam(t);
-await ensureGatewayAccount();
+for (const r of REPOS) await ensureProtection(r);
+
+const envValues = readGatewayEnv();
+for (const acct of SERVICE_ACCOUNTS) await ensureServiceAccount(acct, envValues);
+writeGatewayEnv(envValues);
 console.log("Done. Sign in at http://localhost:3000 (credentials in deploy/local/.env).");

@@ -13,6 +13,10 @@ pnpm brain token create --owner alice.synthetic --harness claude-code \
   --sources company,skills,client-acme-analytics --days 30
 ```
 
+Add `--mode propose` for agents that should suggest changes. The owner must be
+able to propose changes to every listed source in Forgejo (for example, Alice
+can propose to her Acme pod's repository but not to `company`).
+
 Harnesses: `claude-code`, `claude-desktop` (Anthropic), `codex-cli` (OpenAI),
 `gemini-cli` (Google), `custom` (pass `--vendor`). Maximum lifetime is 90 days.
 A token can never cover a source its owner cannot read in Forgejo.
@@ -63,6 +67,8 @@ OpenAPI spec: `GET /v1/openapi.json`. Send `Authorization: Bearer <token>`.
 | `GET /v1/sources/{source}/documents?prefix=` | List documents |
 | `GET /v1/sources/{source}/documents/{path}` | Read one document |
 | `GET /v1/search?q=&source=&limit=` | Full-text search |
+| `GET /v1/proposals?source=` | Recent proposals and their status |
+| `POST /v1/sources/{source}/proposals` | Propose a change (propose tokens only) |
 
 ## 3. Tools available
 
@@ -73,8 +79,14 @@ OpenAPI spec: `GET /v1/openapi.json`. Send `Authorization: Bearer <token>`.
 | `list_documents` | Documents in a source, optionally under a folder |
 | `read_document` | Full document, metadata and `revision` |
 | `search` | Full-text search with snippets |
+| `list_proposals` | Recent proposals and whether they were merged |
+| `propose_change` | **Propose tokens only.** Suggest an update; needs the `revision` from `read_document` |
+| `propose_document` | **Propose tokens only.** Suggest a new document |
 
-All tools are read-only in Milestone 2. Proposing changes arrives in Milestone 3.
+Proposals open a pull request for a human to review
+(see `docs/reviewing-proposals.md`). Nothing changes until it is approved.
+If the document changed after your agent read it, the proposal is refused and
+the agent should read it again.
 
 ## 4. Verification status
 

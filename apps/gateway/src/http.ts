@@ -2,9 +2,10 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { Brain, type Caller, NotFoundError } from "./brain.ts";
+import { Brain, type Caller, ForbiddenError, NotFoundError, RateLimitError } from "./brain.ts";
 import { buildMcpServer } from "./mcp.ts";
 import { openApiSpec } from "./openapi.ts";
+import { InvalidProposalError, StaleRevisionError } from "./proposals.ts";
 import type { Store } from "./store.ts";
 import { verifyToken } from "./tokens.ts";
 
@@ -78,9 +79,14 @@ export function createApp(opts: { db: Store; brain: Brain; clientKey?: (c: Conte
 
   const rest = (fn: (c: Context<Env>, caller: Caller) => unknown) => async (c: Context<Env>) => {
     try {
-      return c.json(fn(c, c.get("caller")) as object);
+      return c.json((await fn(c, c.get("caller"))) as object);
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: "Not found" }, 404);
+      if (err instanceof ForbiddenError) return c.json({ error: err.message }, 403);
+      if (err instanceof StaleRevisionError) return c.json({ error: err.message }, 409);
+      if (err instanceof InvalidProposalError)
+        return c.json({ error: "Invalid proposal", problems: err.problems }, 422);
+      if (err instanceof RateLimitError) return c.json({ error: err.message }, 429);
       throw err;
     }
   };
@@ -123,6 +129,36 @@ export function createApp(opts: { db: Store; brain: Brain; clientKey?: (c: Conte
           ...(Number.isFinite(limit) ? { limit } : {}),
         }),
       };
+    }),
+  );
+
+  app.get(
+    "/v1/proposals",
+    rest((c, caller) => ({ proposals: brain.listProposals(caller, c.req.query("source")) })),
+  );
+  app.post(
+    "/v1/sources/:source/proposals",
+    rest(async (c, caller) => {
+      const b = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+      const str = (k: string) => (typeof b[k] === "string" ? (b[k] as string) : "");
+      const evidence = Array.isArray(b.evidence)
+        ? (b.evidence as { kind?: unknown; ref?: unknown; at?: unknown }[])
+            .filter((e) => typeof e?.kind === "string" && typeof e?.ref === "string")
+            .slice(0, 20)
+            .map((e) => ({
+              kind: String(e.kind),
+              ref: String(e.ref),
+              ...(typeof e.at === "string" ? { at: e.at } : {}),
+            }))
+        : [];
+      return brain.propose(caller, {
+        source: c.req.param("source") ?? "",
+        path: str("path"),
+        content: str("content"),
+        baseRevision: str("base_revision") || null,
+        summary: str("summary"),
+        evidence,
+      });
     }),
   );
 

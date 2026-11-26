@@ -2,7 +2,18 @@
 // (SEC-AUD-1). MCP and REST are thin adapters over this class, so isolation is
 // implemented exactly once.
 import { randomUUID } from "node:crypto";
+import { validateDocument } from "@brain/knowledge";
 import { type VendorPolicy, vendorAllowed } from "./policy.ts";
+import {
+  branchName,
+  checkPath,
+  type Evidence,
+  InvalidProposalError,
+  MAX_CONTENT_BYTES,
+  type ProposalWriter,
+  proposalBody,
+  StaleRevisionError,
+} from "./proposals.ts";
 import type { Store } from "./store.ts";
 import type { TokenRecord } from "./tokens.ts";
 
@@ -11,6 +22,37 @@ export class NotFoundError extends Error {
     // Identical for "does not exist" and "exists but not yours" (SEC-ISO-4).
     super("Not found");
   }
+}
+
+/** The token is valid but may not do this (e.g. a read-only token proposing). */
+export class ForbiddenError extends Error {}
+export class RateLimitError extends Error {}
+
+export const MAX_PROPOSALS_PER_HOUR = 20;
+
+export interface ProposeInput {
+  source: string;
+  path: string;
+  content: string;
+  /** Revision from read_document for an update; null for a new document. */
+  baseRevision: string | null;
+  summary: string;
+  evidence: Evidence[];
+}
+
+export interface ProposalInfo {
+  proposalId: string;
+  source: string;
+  path: string;
+  kind: "update" | "new";
+  title: string;
+  state: "open" | "merged" | "closed";
+  url: string;
+  owner: string;
+  harness: string;
+  createdAt: string;
+  approvedBy: string | null;
+  decidedBy: string | null;
 }
 
 export interface Caller {
@@ -57,9 +99,11 @@ export function toFtsQuery(input: string): string | null {
 export class Brain {
   readonly #db: Store;
   readonly #policy: VendorPolicy;
-  constructor(db: Store, policy: VendorPolicy) {
+  readonly #writer: ProposalWriter | null;
+  constructor(db: Store, policy: VendorPolicy, writer: ProposalWriter | null = null) {
     this.#db = db;
     this.#policy = policy;
+    this.#writer = writer;
   }
 
   static newCaller(token: TokenRecord, via: string): Caller {
@@ -186,5 +230,217 @@ export class Brain {
       .all(fts, ...scope, limit) as unknown as SearchHit[];
     this.audit(caller, "search", "ok", opts.source, query);
     return hits;
+  }
+
+  /**
+   * Open a proposal for human review. Agents can never change canonical
+   * knowledge directly (SEC-INT-1); this creates a branch + pull request.
+   */
+  async propose(caller: Caller, input: ProposeInput) {
+    const action = input.baseRevision ? "propose_change" : "propose_document";
+    if (caller.token.mode !== "propose") {
+      this.audit(caller, action, "denied_read_only", input.source, input.path);
+      throw new ForbiddenError(
+        "This token is read-only. Ask an admin for a token with --mode propose.",
+      );
+    }
+    this.#requireSource(caller, input.source, action, input.path);
+    if (!this.#writer) throw new Error("Proposals are not configured on this gateway.");
+
+    const problems: string[] = [];
+    const pathProblem = checkPath(input.path);
+    if (pathProblem) problems.push(pathProblem);
+    if (Buffer.byteLength(input.content, "utf8") > MAX_CONTENT_BYTES)
+      problems.push(`content is larger than ${MAX_CONTENT_BYTES / 1000} KB`);
+    if (input.summary.trim().length < 10)
+      problems.push("summary must explain the change in at least 10 characters");
+    if (!pathProblem)
+      problems.push(
+        ...validateDocument(input.content, {
+          repo: input.source,
+          path: input.path,
+          requireSynthetic: false,
+        }),
+      );
+    if (problems.length) {
+      this.audit(caller, action, "invalid", input.source, input.path);
+      throw new InvalidProposalError(problems);
+    }
+
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+    const recent = this.#db
+      .prepare("SELECT COUNT(*) AS n FROM proposals WHERE token_id = ? AND created_at > ?")
+      .get(caller.token.id, hourAgo) as { n: number };
+    if (Number(recent.n) >= MAX_PROPOSALS_PER_HOUR) {
+      this.audit(caller, action, "rate_limited", input.source, input.path);
+      throw new RateLimitError(
+        `Limit of ${MAX_PROPOSALS_PER_HOUR} proposals per hour reached for this token.`,
+      );
+    }
+
+    // Check against Git itself, not the index, which can lag behind (SEC-INT-5).
+    const current = await this.#writer.currentRevision(input.source, input.path);
+    if (input.baseRevision === null && current !== null) {
+      this.audit(caller, action, "exists", input.source, input.path);
+      throw new InvalidProposalError([
+        "document already exists: read it, then use propose_change with its revision",
+      ]);
+    }
+    if (input.baseRevision !== null && current === null) {
+      this.audit(caller, action, "not_found", input.source, input.path);
+      throw new NotFoundError();
+    }
+    if (input.baseRevision !== null && current !== input.baseRevision) {
+      this.audit(caller, action, "stale", input.source, input.path);
+      throw new StaleRevisionError(
+        "The document changed since you read it. Read it again, re-apply your change, and propose with the new revision.",
+      );
+    }
+
+    const t = caller.token;
+    const kind = input.baseRevision ? "update" : "new";
+    const proposalId = randomUUID();
+    const branch = branchName(t.owner, input.path);
+    const docTitle = this.#db
+      .prepare("SELECT title FROM documents WHERE source = ? AND path = ?")
+      .get(input.source, input.path) as { title: string } | undefined;
+    const firstLine = input.summary.trim().split("\n")[0] ?? "";
+    const title = `${docTitle?.title ?? input.path}: ${firstLine.length > 70 ? `${firstLine.slice(0, 67)}...` : firstLine}`;
+    const body = proposalBody({
+      summary: input.summary.trim(),
+      path: input.path,
+      kind,
+      owner: t.owner,
+      harness: t.harness,
+      vendor: t.vendor,
+      tokenName: t.name,
+      tokenId: t.id,
+      proposalId,
+      evidence: input.evidence,
+    });
+
+    let pr: { number: number; url: string };
+    try {
+      pr = await this.#writer.open({
+        source: input.source,
+        path: input.path,
+        content: input.content,
+        baseRevision: input.baseRevision,
+        branch,
+        commitMessage: `${kind === "new" ? "Propose" : "Propose update to"} ${input.path}\n\nProposed by ${t.harness} (${t.vendor}) for ${t.owner}.`,
+        title,
+        body,
+      });
+    } catch (err) {
+      this.audit(
+        caller,
+        action,
+        err instanceof StaleRevisionError ? "stale" : "error",
+        input.source,
+        input.path,
+      );
+      throw err;
+    }
+
+    this.#db
+      .prepare(
+        `INSERT INTO proposals (id, token_id, owner, harness, vendor, source, path, kind, title, branch, pr_number, pr_url, base_revision, created_at, state)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
+      )
+      .run(
+        proposalId,
+        t.id,
+        t.owner,
+        t.harness,
+        t.vendor,
+        input.source,
+        input.path,
+        kind,
+        title,
+        branch,
+        pr.number,
+        pr.url,
+        input.baseRevision,
+        new Date().toISOString(),
+      );
+    this.audit(caller, action, `ok:#${pr.number}`, input.source, input.path);
+    return {
+      proposalId,
+      state: "open" as const,
+      reviewUrl: pr.url,
+      message:
+        "Proposal opened. A human reviewer must approve it before it becomes part of the Brain.",
+    };
+  }
+
+  listProposals(caller: Caller, source?: string): ProposalInfo[] {
+    let scope = this.scope(caller);
+    if (source) {
+      this.#requireSource(caller, source, "list_proposals");
+      scope = [source];
+    }
+    this.audit(caller, "list_proposals", "ok", source);
+    if (!scope.length) return [];
+    const marks = scope.map(() => "?").join(",");
+    return this.#db
+      .prepare(
+        `SELECT id AS proposalId, source, path, kind, title, state, pr_url AS url, owner, harness,
+                created_at AS createdAt, approved_by AS approvedBy, decided_by AS decidedBy
+         FROM proposals WHERE source IN (${marks}) ORDER BY created_at DESC LIMIT 50`,
+      )
+      .all(...scope) as unknown as ProposalInfo[];
+  }
+
+  /**
+   * Record human decisions made in Forgejo (approvals, merges, rejections) in
+   * our audit log. Called by the same poller that refreshes the index.
+   */
+  async reconcile(): Promise<number> {
+    if (!this.#writer) return 0;
+    const open = this.#db
+      .prepare(
+        "SELECT id, source, path, pr_number, approved_by FROM proposals WHERE state = 'open'",
+      )
+      .all() as {
+      id: string;
+      source: string;
+      path: string;
+      pr_number: number;
+      approved_by: string | null;
+    }[];
+    let changes = 0;
+    for (const p of open) {
+      const s = await this.#writer.status(p.source, Number(p.pr_number));
+      const resource = `${p.path}#${p.pr_number}`;
+      const approved = s.approvedBy.join(",") || null;
+      if (approved && approved !== p.approved_by) {
+        this.#db.prepare("UPDATE proposals SET approved_by = ? WHERE id = ?").run(approved, p.id);
+        this.#systemAudit("proposal_approved", approved, p.source, resource);
+        changes++;
+      }
+      if (s.state !== "open") {
+        const by = s.mergedBy ?? "unknown";
+        this.#db
+          .prepare("UPDATE proposals SET state = ?, decided_by = ?, decided_at = ? WHERE id = ?")
+          .run(s.state, s.state === "merged" ? by : null, new Date().toISOString(), p.id);
+        this.#systemAudit(
+          `proposal_${s.state}`,
+          s.state === "merged" ? by : null,
+          p.source,
+          resource,
+        );
+        changes++;
+      }
+    }
+    return changes;
+  }
+
+  #systemAudit(action: string, actor: string | null, source: string, resource: string) {
+    this.#db
+      .prepare(
+        `INSERT INTO audit (ts, request_id, owner, harness, action, source, resource, result)
+         VALUES (?, ?, ?, 'forgejo', ?, ?, ?, 'ok')`,
+      )
+      .run(new Date().toISOString(), randomUUID(), actor, `forgejo:${action}`, source, resource);
   }
 }

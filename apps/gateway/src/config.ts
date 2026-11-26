@@ -19,6 +19,7 @@ export function loadConfig() {
       url: process.env.FORGEJO_URL ?? "http://localhost:3000",
       org: process.env.FORGEJO_ORG ?? "adconversion",
       token: () => need("FORGEJO_GATEWAY_TOKEN"),
+      proposerToken: () => need("FORGEJO_PROPOSER_TOKEN"),
       admin: () => ({
         username: need("FORGEJO_ADMIN_USER"),
         password: need("FORGEJO_ADMIN_PASSWORD"),

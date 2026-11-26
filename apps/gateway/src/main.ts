@@ -7,22 +7,31 @@ import { ForgejoSource } from "./content.ts";
 import { createApp } from "./http.ts";
 import { syncIndex } from "./indexer.ts";
 import { loadVendorPolicy } from "./policy.ts";
+import { ForgejoWriter } from "./proposals.ts";
 import { openStore } from "./store.ts";
 
 const cfg = loadConfig();
 mkdirSync(dirname(cfg.dbPath), { recursive: true });
 const db = openStore(cfg.dbPath);
-const brain = new Brain(db, loadVendorPolicy(cfg.vendorPolicy));
 const source = new ForgejoSource({
   url: cfg.forgejo.url,
   org: cfg.forgejo.org,
   token: cfg.forgejo.token(),
 });
+// Separate credential for proposals: can open branches and PRs, never merge.
+const writer = new ForgejoWriter({
+  url: cfg.forgejo.url,
+  org: cfg.forgejo.org,
+  token: cfg.forgejo.proposerToken(),
+});
+const brain = new Brain(db, loadVendorPolicy(cfg.vendorPolicy), writer);
 
 async function reindex() {
   try {
     const changed = await syncIndex(db, source);
     if (changed.length) console.log(`indexed: ${changed.join(", ")}`);
+    const decisions = await brain.reconcile();
+    if (decisions) console.log(`recorded ${decisions} proposal decision(s)`);
   } catch (err) {
     console.error("reindex failed:", (err as Error).message);
   }

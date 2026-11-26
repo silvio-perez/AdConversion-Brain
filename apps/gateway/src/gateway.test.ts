@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { toFtsQuery } from "./brain.ts";
-import { TOOL_NAMES } from "./mcp.ts";
+import { READ_TOOLS } from "./mcp.ts";
 import { ACME, CANARY, GLOBEX, makeGateway, toolText } from "./testkit.ts";
 import { createToken, revokeToken, verifyToken } from "./tokens.ts";
 
@@ -177,7 +177,7 @@ describe("MCP: any compliant harness (conformance + isolation)", () => {
   it("exposes the expected read-only tools", async () => {
     const client = await gw.mcp(acme);
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
+    expect(tools.map((t) => t.name).sort()).toEqual([...READ_TOOLS].sort());
     for (const t of tools) expect(t.annotations?.readOnlyHint).toBe(true);
     await client.close();
   });

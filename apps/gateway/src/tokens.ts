@@ -4,6 +4,9 @@ import type { Store } from "./store.ts";
 export const TOKEN_PREFIX = "brn_";
 export const MAX_TOKEN_DAYS = 90; // SEC-AUTH-4
 
+/** read: look things up. propose: also open proposals for human review. */
+export type TokenMode = "read" | "propose";
+
 export interface TokenRecord {
   id: string;
   name: string;
@@ -11,7 +14,7 @@ export interface TokenRecord {
   harness: string;
   vendor: string;
   sources: string[];
-  mode: "read";
+  mode: TokenMode;
   createdAt: string;
   expiresAt: string;
   revokedAt: string | null;
@@ -24,6 +27,7 @@ export interface NewToken {
   vendor: string;
   sources: string[];
   days: number;
+  mode?: TokenMode;
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -48,7 +52,7 @@ export function createToken(
     harness: input.harness,
     vendor: input.vendor,
     sources: [...new Set(input.sources)].sort(),
-    mode: "read",
+    mode: input.mode ?? "read",
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + input.days * 86_400_000).toISOString(),
     revokedAt: null,
@@ -78,7 +82,7 @@ interface TokenRow {
   harness: string;
   vendor: string;
   sources: string;
-  mode: "read";
+  mode: TokenMode;
   created_at: string;
   expires_at: string;
   revoked_at: string | null;

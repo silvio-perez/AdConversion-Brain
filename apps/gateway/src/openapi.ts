@@ -60,5 +60,58 @@ export const openApiSpec = {
         responses: { 200: { description: "OK" }, 404: err },
       },
     },
+    "/v1/proposals": {
+      get: {
+        operationId: "listProposals",
+        summary: "Recent proposals in accessible sources",
+        parameters: [{ name: "source", in: "query", schema: { type: "string" } }],
+        responses: { 200: { description: "OK" } },
+      },
+    },
+    "/v1/sources/{source}/proposals": {
+      post: {
+        operationId: "propose",
+        summary:
+          "Propose a change for human review. Include base_revision (from readDocument) to update; omit it to create a new document.",
+        parameters: [sourceParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["path", "content", "summary"],
+                properties: {
+                  path: { type: "string" },
+                  content: { type: "string", description: "Full document including frontmatter" },
+                  base_revision: { type: "string" },
+                  summary: { type: "string" },
+                  evidence: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: ["kind", "ref"],
+                      properties: {
+                        kind: { type: "string", enum: ["grain", "document", "manual"] },
+                        ref: { type: "string" },
+                        at: { type: "string" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: "Proposal opened" },
+          403: { description: "Token is read-only" },
+          404: err,
+          409: { description: "Document changed since it was read" },
+          422: { description: "Invalid proposal (see problems)" },
+          429: { description: "Too many proposals" },
+        },
+      },
+    },
   },
 } as const;

@@ -68,7 +68,16 @@ format Claude, Codex and the open agents convention all read.
 
 ## 5. Changing knowledge
 
-The `main` branch of every repository is protected. Nobody, including admins,
-pushes directly. Every change is a pull request that needs one approval
-(SEC-INT-1, SEC-INT-6). In the Forgejo web editor, choose "Create a new branch
-for this commit and start a pull request".
+The `main` branch of every repository is protected. Nobody, including admins and
+bots, pushes directly. Every change is a pull request that needs one approval
+from the right human team (SEC-INT-1, SEC-INT-6):
+
+| Repository | Approvals count from |
+|---|---|
+| `client-<slug>` | that client's pod team |
+| `company`, `skills` | `knowledge-admins` |
+
+New commits withdraw earlier approvals. In the Forgejo web editor, choose "Create
+a new branch for this commit and start a pull request". AI agents propose
+through the gateway (`propose_change`, `propose_document`); see
+`docs/reviewing-proposals.md`.

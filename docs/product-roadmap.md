@@ -74,7 +74,7 @@ Deliverables:
 
 **Teaches:** what MCP actually is, how token scoping works.
 
-### Milestone 3: Proposals and approval (1–2 weeks)
+### Milestone 3: Proposals and approval (1–2 weeks) ✅ Done 2026-11-26 (see `docs/milestones/m3-proposals.md`)
 
 **Work:**
 

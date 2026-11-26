@@ -1,65 +1,10 @@
 // Live gateway tests against a seeded stack with `pnpm gateway` running.
 // Exercises the real path: Forgejo -> read-only gateway account -> index -> MCP.
-import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { brainCli as brain, createToken, mcpCall } from "./live.ts";
 
 const live = process.env.BRAIN_STACK === "1";
-const GATEWAY = process.env.BRAIN_URL ?? "http://localhost:8787";
 const CANARY = "GLOBEX-CANARY-7f3a";
-
-function brain(...args: string[]): { ok: boolean; out: string } {
-  try {
-    return {
-      ok: true,
-      out: execFileSync("pnpm", ["-s", "brain", ...args], { encoding: "utf8", stdio: "pipe" }),
-    };
-  } catch (err) {
-    const e = err as { stdout?: string; stderr?: string };
-    return { ok: false, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
-  }
-}
-
-function createToken(owner: string, harness: string, sources: string): string {
-  const res = brain(
-    "token",
-    "create",
-    "--owner",
-    owner,
-    "--harness",
-    harness,
-    "--sources",
-    sources,
-    "--days",
-    "1",
-  );
-  expect(res.ok, res.out).toBe(true);
-  const token = res.out.split("\n").find((l) => l.startsWith("brn_"));
-  if (!token) throw new Error(res.out);
-  return token;
-}
-
-let id = 0;
-async function mcpCall(token: string, name: string, args: Record<string, unknown>) {
-  const res = await fetch(`${GATEWAY}/mcp`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      accept: "application/json, text/event-stream",
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: ++id,
-      method: "tools/call",
-      params: { name, arguments: args },
-    }),
-  });
-  const body = (await res.json()) as { result: { content: { text: string }[]; isError?: boolean } };
-  return {
-    text: body.result.content.map((c) => c.text).join("\n"),
-    isError: !!body.result.isError,
-  };
-}
 
 describe.skipIf(!live)("gateway (live stack)", () => {
   it("refuses a token wider than its owner's own Forgejo access", () => {
