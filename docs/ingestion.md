@@ -38,7 +38,15 @@ pnpm brain token create --owner brain-ingest --harness custom --vendor local \
 
 INGEST_TOKEN=brn_... pnpm ingest --since 2026-11-01 --dry-run   # preview
 INGEST_TOKEN=brn_... pnpm ingest --since 2026-11-01             # open proposals
+
+# With Claude on Bedrock (on the AWS server; credentials from its IAM role)
+INGEST_BEDROCK_MODEL=<model or inference profile id> AWS_REGION=us-east-1 \
+  INGEST_TOKEN=brn_... pnpm ingest --model bedrock --since 2026-11-01
+pnpm ingest:eval --model bedrock   # score the model before trusting it
 ```
+
+The ingestion token's vendor must match the model: `local` for the stand-in,
+`anthropic` for Bedrock.
 
 Runs are idempotent. A meeting that already has a proposal (open or merged) is
 never re-sent to the model, even if the worker's local state is lost. If a
@@ -68,7 +76,7 @@ asks about it explicitly.
 |---|---|
 | Pipeline, safeguards, tests | Done, tested with synthetic meetings |
 | Model | **Local stand-in only** (`local-rule-model`: rule-based, sends nothing anywhere). Its titles are crude copies of sentences; a real model writes proper summaries. |
-| Claude via AWS Bedrock | **Not built.** Needs an AdConversion AWS account and approval for `@aws-sdk/client-bedrock-runtime`. The `Model` interface in `apps/ingest/src/model.ts` and the prompt in `buildPrompt` are ready for it. |
+| Claude via AWS Bedrock | **Adapter built and unit-tested** (`apps/ingest/src/bedrock.ts`, stubbed AWS calls). Refuses non-Anthropic model ids so the vendor policy stays honest. Credentials come from the server's IAM role. Not yet run against real Bedrock (needs the AWS account). |
 | Grain API | **Not built.** Needs a Grain API key and approval (Milestone 6). Implement `MeetingSource` in `apps/ingest/src/grain.ts`. |
 | Scheduled runs | Run manually for now; a schedule is part of Milestone 6 deployment. |
-| Prompt evaluation set | To do with the real model: compare outputs on synthetic transcripts before any provider switch. |
+| Evaluation set | **Built** (`pnpm ingest:eval [--model local|bedrock]`): recall of key facts + zero forbidden content, pass/fail threshold. Only 3 meetings so far and tuned to the stand-in; grow it to 20+ synthetic meetings before judging Claude. |

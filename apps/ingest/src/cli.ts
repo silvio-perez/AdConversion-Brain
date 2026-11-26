@@ -31,8 +31,11 @@ if (values.source !== "fixtures")
   throw new Error(
     "Only the synthetic fixture source exists until a Grain API key is approved (Milestone 6).",
   );
-if (values.model !== "local")
-  throw new Error("Only the local stand-in model exists until Bedrock access is approved.");
+if (values.model !== "local" && values.model !== "bedrock")
+  throw new Error("--model must be local or bedrock");
+const bedrockModelId = process.env.INGEST_BEDROCK_MODEL;
+if (values.model === "bedrock" && !bedrockModelId)
+  throw new Error("Set INGEST_BEDROCK_MODEL to the Bedrock model or inference profile id.");
 
 const statePath = process.env.INGEST_STATE ?? join(ROOT, "deploy/local/data/ingest.db");
 mkdirSync(dirname(statePath), { recursive: true });
@@ -43,7 +46,16 @@ const reports = await runIngestion(
     mapping: loadMapping(
       process.env.INGEST_CLIENT_MAPPING ?? join(ROOT, "config/client-mapping.json"),
     ),
-    model: new LocalRuleModel({ vendor: "local" }),
+    model:
+      values.model === "bedrock"
+        ? await import("./bedrock.ts").then(
+            ({ BedrockModel }) =>
+              new BedrockModel({
+                modelId: bedrockModelId ?? "",
+                ...(process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}),
+              }),
+          )
+        : new LocalRuleModel({ vendor: "local" }),
     brain: new BrainClient({ url: process.env.BRAIN_URL ?? "http://localhost:8787", token }),
     state: new IngestState(statePath),
     dryRun: values["dry-run"],
