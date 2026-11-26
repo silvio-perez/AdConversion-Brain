@@ -123,3 +123,42 @@ export function listTokens(db: Store): TokenRecord[] {
     db.prepare("SELECT * FROM tokens ORDER BY created_at").all() as unknown as TokenRow[]
   ).map(toRecord);
 }
+
+export type AccessLookup = (
+  owner: string,
+  source: string,
+) => Promise<{ read: boolean; write: boolean }>;
+
+/**
+ * Revoke tokens whose owner no longer has the access the token assumes (for
+ * example, they left a pod). Run nightly. Returns what was revoked and why.
+ */
+export async function recheckTokens(
+  db: Store,
+  access: AccessLookup,
+  now = new Date(),
+): Promise<{ id: string; owner: string; reason: string }[]> {
+  const revoked: { id: string; owner: string; reason: string }[] = [];
+  const active = listTokens(db).filter((t) => !t.revokedAt && new Date(t.expiresAt) > now);
+  const cache = new Map<string, { read: boolean; write: boolean }>();
+  for (const t of active) {
+    let reason: string | null = null;
+    for (const source of t.sources) {
+      const key = `${t.owner}\u0000${source}`;
+      const a = cache.get(key) ?? (await access(t.owner, source));
+      cache.set(key, a);
+      if (!a.read) reason = `${t.owner} can no longer read ${source}`;
+      else if (t.mode === "propose" && !a.write)
+        reason = `${t.owner} can no longer propose to ${source}`;
+      if (reason) break;
+    }
+    if (!reason) continue;
+    revokeToken(db, t.id, now);
+    db.prepare(
+      `INSERT INTO audit (ts, request_id, token_id, owner, harness, vendor, action, resource, result)
+       VALUES (?, ?, ?, ?, ?, ?, 'admin:token_revoked', ?, ?)`,
+    ).run(now.toISOString(), randomUUID(), t.id, t.owner, t.harness, t.vendor, t.name, reason);
+    revoked.push({ id: t.id, owner: t.owner, reason });
+  }
+  return revoked;
+}

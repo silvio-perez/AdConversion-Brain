@@ -10,7 +10,7 @@ import { loadVendorPolicy, vendorAllowed } from "./policy.ts";
 import { ForgejoWriter } from "./proposals.ts";
 import { ForgejoSkillSource, syncSkills } from "./skills.ts";
 import { openStore } from "./store.ts";
-import { createToken, listTokens, MAX_TOKEN_DAYS, revokeToken } from "./tokens.ts";
+import { createToken, listTokens, MAX_TOKEN_DAYS, recheckTokens, revokeToken } from "./tokens.ts";
 
 const HARNESSES: Record<string, string> = {
   "claude-code": "anthropic",
@@ -120,6 +120,13 @@ switch (`${command} ${sub ?? ""}`.trim()) {
       })),
     );
     break;
+  case "token recheck": {
+    // Nightly: revoke agent tokens whose human owner lost the access they assume.
+    const revoked = await recheckTokens(db, ownerAccess);
+    for (const r of revoked) console.log(`Revoked ${r.id.slice(0, 8)} (${r.owner}): ${r.reason}`);
+    console.log(`Checked tokens; revoked ${revoked.length}.`);
+    break;
+  }
   case "token revoke": {
     const prefix = rest[0] ?? "";
     const match = listTokens(db).filter((t) => prefix.length >= 8 && t.id.startsWith(prefix));
@@ -159,6 +166,7 @@ switch (`${command} ${sub ?? ""}`.trim()) {
   pnpm brain token create --owner <user> --harness <${Object.keys(HARNESSES).join("|")}> --sources a,b [--mode read|propose] [--days 1-${MAX_TOKEN_DAYS}] [--name n] [--vendor v]
   pnpm brain token list
   pnpm brain token revoke <id-prefix>
+  pnpm brain token recheck
   pnpm brain reindex
   pnpm brain reconcile
   pnpm brain audit tail`);

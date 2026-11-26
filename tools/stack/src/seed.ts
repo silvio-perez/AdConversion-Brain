@@ -19,7 +19,8 @@ if (!admin.password || !userPassword) throw new Error("Run `pnpm stack:init` fir
 const FIXTURES = join(import.meta.dirname, "../../../fixtures/synthetic");
 const GATEWAY_ENV = join(import.meta.dirname, "../../../deploy/local/gateway.env");
 const REPOS = ["company", "skills", "client-acme-analytics", "client-globex-cloud"];
-const USERS = ["alice.synthetic", "bob.synthetic", "carol.synthetic"];
+// dave.synthetic exists only for tests that change team membership.
+const USERS = ["alice.synthetic", "bob.synthetic", "carol.synthetic", "dave.synthetic"];
 
 /**
  * Human teams. `reviews` lists the repositories where this team's approval
@@ -44,7 +45,7 @@ const TEAMS = [
     name: "pod-acme",
     permission: "write",
     repos: ["client-acme-analytics"],
-    members: ["alice.synthetic"],
+    members: ["alice.synthetic", "dave.synthetic"],
     reviews: ["client-acme-analytics"],
   },
   {
